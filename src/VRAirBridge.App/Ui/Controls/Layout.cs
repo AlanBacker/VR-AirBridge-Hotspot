@@ -8,6 +8,8 @@ namespace VRAirBridge.App.Ui.Controls;
 /// Vertical stack for the inside of a ScrollViewer: every child but the last takes its natural height,
 /// the last child fills what is left of the viewport (at least <see cref="LastMinHeight"/>), so a list in
 /// the last card keeps virtualizing while the page still scrolls when the window is short.
+/// When everything fits, the panel's height (including its own Margin) never exceeds the viewport, so the
+/// page has nothing to scroll and the bottom of the last card stays above whatever sits below the viewer.
 /// </summary>
 public sealed class FillLastPanel : Panel
 {
@@ -23,6 +25,12 @@ public sealed class FillLastPanel : Panel
     public double LastMinHeight { get => (double)GetValue(LastMinHeightProperty); set => SetValue(LastMinHeightProperty, value); }
 
     private ScrollViewer? _sv;
+    // The ScrollContentPresenter between this panel and the ScrollViewer: its arranged height IS the viewport height,
+    // already up to date when its SizeChanged fires. (ScrollViewer.ViewportHeight is only refreshed on LayoutUpdated,
+    // after the re-measure we trigger, so reading it left the panel one resize behind: shrinking the window by 120 DIP
+    // made the page 120 DIP too tall and hid the bottom of the log behind the status bar.)
+    private FrameworkElement? _viewport;
+    private FrameworkElement? _watched;
     private double _lastH;
 
     public FillLastPanel()
@@ -35,29 +43,47 @@ public sealed class FillLastPanel : Panel
     {
         Unhook();
         DependencyObject? p = VisualTreeHelper.GetParent(this);
-        while (p != null && p is not ScrollViewer) p = VisualTreeHelper.GetParent(p);
+        while (p != null && p is not ScrollViewer)
+        {
+            if (_viewport == null && p is ScrollContentPresenter scp) _viewport = scp;
+            p = VisualTreeHelper.GetParent(p);
+        }
         _sv = p as ScrollViewer;
-        if (_sv != null) _sv.SizeChanged += OnViewportChanged;
+        if (_sv == null) _viewport = null;
+        _watched = _viewport ?? _sv;
+        if (_watched != null) _watched.SizeChanged += OnViewportChanged;
         InvalidateMeasure();
     }
 
     private void Unhook()
     {
-        if (_sv != null) _sv.SizeChanged -= OnViewportChanged;
+        if (_watched != null) _watched.SizeChanged -= OnViewportChanged;
+        _watched = null;
+        _viewport = null;
         _sv = null;
     }
 
-    private void OnViewportChanged(object sender, SizeChangedEventArgs e) => InvalidateMeasure();
+    private void OnViewportChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (e.HeightChanged) InvalidateMeasure();
+    }
 
     private List<UIElement> Kids() => InternalChildren.Cast<UIElement>().Where(c => c.Visibility != Visibility.Collapsed).ToList();
 
+    /// <summary>
+    /// Height available to the children. Inside a ScrollViewer the measure height is infinite, so it comes from
+    /// the viewer's viewport, minus this panel's own vertical Margin (FrameworkElement adds the Margin to the
+    /// desired size afterwards; forgetting it made the page 28 DIP taller than the viewport, which pushed the
+    /// bottom of the log card under the status bar and gave the page a scrollbar it never needed).
+    /// </summary>
     private double ViewportHeight(Size available)
     {
         if (!double.IsInfinity(available.Height)) return available.Height;
         if (_sv != null)
         {
-            if (_sv.ViewportHeight > 0) return _sv.ViewportHeight;
-            if (_sv.ActualHeight > 0) return _sv.ActualHeight;
+            double vh = _viewport is { ActualHeight: > 0 } ? _viewport.ActualHeight
+                : _sv.ViewportHeight > 0 ? _sv.ViewportHeight : _sv.ActualHeight;
+            if (vh > 0) return Math.Max(0, vh - Margin.Top - Margin.Bottom);
         }
         return 600;
     }
@@ -79,7 +105,10 @@ public sealed class FillLastPanel : Panel
         if (kids.Count > 0)
         {
             var last = kids[^1];
-            _lastH = Math.Max(LastMinHeight, ViewportHeight(availableSize) - used);
+            // Floor: layout rounding of the other children (125 % DPI etc.) must never add up to a sub-pixel
+            // overflow, which would be enough for the viewer to show a scrollbar; the arrange pass below still
+            // stretches the last child over any remaining space.
+            _lastH = Math.Max(LastMinHeight, Math.Floor(ViewportHeight(availableSize) - used));
             last.Measure(new Size(w, _lastH));
             maxW = Math.Max(maxW, last.DesiredSize.Width);
         }

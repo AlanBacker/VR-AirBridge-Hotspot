@@ -159,7 +159,7 @@
             </Grid>
 
             <!-- ======================================================== status bar -->
-            <Border Grid.Row="3" Padding="16,6,16,6" BorderThickness="0,1,0,0" BorderBrush="{DynamicResource B.Divider}"
+            <Border x:Name="StatusBar" Grid.Row="3" Padding="16,6,16,6" BorderThickness="0,1,0,0" BorderBrush="{DynamicResource B.Divider}"
                     AutomationProperties.Name="{l:T ui.sb.title}">
                 <ItemsControl ItemsSource="{Binding StatusSegs}" Focusable="False">
                     <ItemsControl.ItemsPanel>

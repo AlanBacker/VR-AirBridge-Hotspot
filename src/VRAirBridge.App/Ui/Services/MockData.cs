@@ -39,6 +39,14 @@ internal static class MockData
         _ => throw new ArgumentOutOfRangeException(nameof(name), name, null),
     };
 
+    /// <summary>
+    /// Layout check: the running dashboard with a log long enough to overflow its list (85 lines, a few of them long
+    /// enough to wrap in the compact layout). The newest line is <see cref="NewestLongLogLine"/>.
+    /// </summary>
+    internal static MockScene LongLog() => Running(lanOnly: false) with { Name = "longlog", Log = LongLogEntries() };
+
+    internal static string NewestLongLogLine => Loc.T("internet.appliedOn");
+
     // ------------------------------------------------------------------ scenes
 
     private static MockScene Start()
@@ -235,6 +243,28 @@ internal static class MockData
         };
         return new ChannelReport(DateTime.Now.AddMinutes(-2), "Intel(R) Wi-Fi 6E AX211 160MHz", goChannel, goChannel != null ? 80 : null,
             neighbors, ChannelInfo.Occupancy(neighbors), UplinkSsid, uplinkChannel, candidates, null);
+    }
+
+    private static IReadOnlyList<LogEntry> LongLogEntries()
+    {
+        var t = DateTime.Today.AddHours(20).AddMinutes(14);
+        var list = new List<LogEntry>(Log(running: false));
+        string pool = Loc.T("dhcp.dhcpSettingsUpdatedPool", "192.168.137.100", "192.168.137.199", "DNS 192.168.137.1, 223.5.5.5, 8.8.8.8");
+        string beacon = Loc.T("watchdog.beaconCheck", "Intel(R) Wi-Fi 6E AX211 160MHz",
+            "149 (5745 MHz) / 80 MHz / 802.11ax / 2 x 2 / RSSI -37 dBm / " + Loc.T("dhcp.listeningReceivedPacketsSentReplies", "192.168.137.1:67", 18, 18));
+        for (int i = 0; i < 12; i++)
+        {
+            var at = t.AddSeconds(10 + i * 30);
+            list.Add(new(at, LogLevel.Info, Loc.T("watchdog.userClickedStartHotspot")));
+            list.Add(new(at.AddSeconds(1), LogLevel.Ok, Loc.T("watchdog.hotspotStarted")));
+            list.Add(new(at.AddSeconds(2), LogLevel.Info, pool));
+            list.Add(new(at.AddSeconds(3), i % 3 == 0 ? LogLevel.Warn : LogLevel.Info, Loc.T("watchdog.otherWiFiNetworksSame", 1, UplinkSsid)));
+            list.Add(new(at.AddSeconds(4), LogLevel.Ok, beacon));
+            list.Add(new(at.AddSeconds(5), LogLevel.Info, Loc.T("nat.icsIsnTWorkingCreating", "VRAirBridgeNat", "192.168.137.0/24")));
+            list.Add(new(at.AddSeconds(6), LogLevel.Info, Loc.T("watchdog.deviceConnected", "Quest-3", "192.168.137.101")));
+        }
+        list.Add(new(t.AddMinutes(7), LogLevel.Ok, NewestLongLogLine));
+        return list;
     }
 
     private static IReadOnlyList<LogEntry> Log(bool running, bool error = false, bool admin = true)

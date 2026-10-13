@@ -24,7 +24,9 @@
     </UserControl.Resources>
 
     <ScrollViewer x:Name="PageScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
-        <c:FillLastPanel Margin="16,14,16,14" Gap="12" LastMinHeight="230">
+        <!-- LastMinHeight: small enough that every dashboard state fits the default 1200x780 window without the page
+             scrolling (checked by the layout pass of ui-screenshot); below that the page scrolls instead. -->
+        <c:FillLastPanel Margin="16,14,16,14" Gap="12" LastMinHeight="150">
 
             <!-- ======================================================== hotspot + channel -->
             <c:AdaptiveGrid MinColumnWidth="340" MaxColumns="2" Gap="12">
@@ -244,6 +246,7 @@
                             <ListBox x:Name="LogList" Padding="6,4" ItemsSource="{Binding LogLines}" SelectionMode="Extended"
                                      FontFamily="{DynamicResource F.Mono}" FontSize="11.5"
                                      VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
+                                     VirtualizingPanel.ScrollUnit="Pixel"
                                      ScrollViewer.CanContentScroll="True" ScrollViewer.VerticalScrollBarVisibility="Auto"
                                      AutomationProperties.Name="{l:T ui.log.title}">
                                 <ListBox.ItemContainerStyle>

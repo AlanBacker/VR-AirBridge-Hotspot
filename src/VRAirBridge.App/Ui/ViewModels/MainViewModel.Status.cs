@@ -629,4 +629,11 @@ public sealed partial class MainViewModel
         LogLines = new ObservableCollection<LogLineVm>(entries.Where(e => e.Level != LogLevel.Debug || EffectiveDebug).Select(Line));
         OnPropertyChanged(nameof(HasLog));
     }
+
+    /// <summary>Layout check: appends one line the way <see cref="FlushLog"/> does for live entries.</summary>
+    internal void AppendMockLog(LogEntry entry)
+    {
+        _logLines.Add(Line(entry));
+        OnPropertyChanged(nameof(HasLog));
+    }
 }
