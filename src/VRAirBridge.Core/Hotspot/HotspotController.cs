@@ -1,4 +1,5 @@
 using VRAirBridge.Core.Logging;
+using VRAirBridge.Core.Net;
 using VRAirBridge.Core.Settings;
 using Windows.Networking.Connectivity;
 using Windows.Networking.NetworkOperators;
@@ -40,27 +41,128 @@ public sealed class HotspotController
     /// <summary>实验功能“钉住信道”（可为 null = 不支持）。由看门狗设置。</summary>
     public ChannelPin? Pin { get; set; }
 
-    /// <summary>取当前上网连接（上行），并据此创建热点管理对象。每次调用都重新获取，避免服务重启后对象失效。</summary>
+    /// <summary>D-Link 的网卡 GUID / MAC（看门狗每个周期设置），用来把它排除在上行之外。</summary>
+    public void SetDongle(string? guid, string? mac)
+    {
+        lock (_uplinkLock) { _dongleGuid = guid; _dongleMac = mac; }
+    }
+
+    private static readonly TimeSpan ContextCacheFor = TimeSpan.FromSeconds(2);
+    private readonly object _uplinkLock = new();
+    private string? _dongleGuid, _dongleMac;
+    private string? _currentUplinkId, _currentUplinkName;   // 热点运行中沿用的上行（不在网卡之间来回跳）
+    private Context? _cachedContext;
+    private DateTime _cachedAt;
+
+    // 进程内去重（诊断里新建的控制器不会重复刷同样的日志）
+    private static readonly object LogLock = new();
+    private static string? _lastLoggedChoice;
+    private static readonly HashSet<string> WarnedDifferences = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// 选出上行连接，并据此创建热点管理对象。不直接用 GetInternetConnectionProfile()：它有时返回 ZeroTier 之类的虚拟网卡，
+    /// 而是由 UplinkSelector 在所有连接里排序挑选（规则见那里）。热点运行中沿用当前上行，只有它丢了默认网关或连通性才换。
+    /// 结果缓存 2 秒（一个周期里会调用好几次）。
+    /// </summary>
     public Context GetContext()
     {
-        ConnectionProfile? profile = null;
-        try { profile = NetworkInformation.GetInternetConnectionProfile(); } catch { }
-        if (profile == null)
+        lock (_uplinkLock)
         {
-            try
-            {
-                profile = NetworkInformation.GetConnectionProfiles()
-                    .FirstOrDefault(p => p.GetNetworkConnectivityLevel() != NetworkConnectivityLevel.None);
-            }
-            catch { }
+            if (_cachedContext != null && DateTime.UtcNow - _cachedAt < ContextCacheFor) return _cachedContext;
+            var probe = UplinkProbe.Probe(_dongleGuid, _dongleMac);
+            var candidates = probe.Entries.Select(e => e.Candidate).ToList();
+            var choice = UplinkSelector.Choose(candidates, probe.WindowsDefaultAdapterId, _currentUplinkId);
+            if (choice == null)
+                throw new HotspotException(Loc.T("hotspot.noNetworkConnectionSharePc"));
+            var entry = probe.Entries.First(e => ReferenceEquals(e.Candidate, choice.Candidate));
+            var c = choice.Candidate;
+            LogChoice(choice, probe, _currentUplinkId, _currentUplinkName);
+            _currentUplinkId = c.AdapterId;
+            _currentUplinkName = DisplayName(c);
+            var mgr = NetworkOperatorTetheringManager.CreateFromConnectionProfile(entry.Profile);
+            var name = c.ProfileName.Length > 0 ? c.ProfileName : c.AdapterName.Length > 0 ? c.AdapterName : "?";
+            _cachedContext = new Context(mgr, entry.Profile, name, c.AdapterId);
+            _cachedAt = DateTime.UtcNow;
+            return _cachedContext;
         }
-        if (profile == null)
-            throw new HotspotException(Loc.T("hotspot.noNetworkConnectionSharePc"));
-        string? adapterId = null;
-        try { adapterId = profile.NetworkAdapter?.NetworkAdapterId.ToString(); } catch { }
-        var mgr = NetworkOperatorTetheringManager.CreateFromConnectionProfile(profile);
-        return new Context(mgr, profile, profile.ProfileName ?? "?", adapterId);
     }
+
+    /// <summary>忘掉沿用的上行和缓存：热点关了 / 要重新开时调用，下次重新挑最好的连接。</summary>
+    private void ResetUplink()
+    {
+        lock (_uplinkLock)
+        {
+            _currentUplinkId = null;
+            _currentUplinkName = null;
+            _cachedContext = null;
+        }
+    }
+
+    /// <summary>只忘掉沿用的上行（保留 2 秒缓存）：热点没开时每次都按当前网络重新挑。</summary>
+    private void ForgetCurrentUplink()
+    {
+        lock (_uplinkLock) { _currentUplinkId = null; _currentUplinkName = null; }
+    }
+
+    private void InvalidateContext()
+    {
+        lock (_uplinkLock) _cachedContext = null;
+    }
+
+    private static string DisplayName(UplinkCandidate c) =>
+        c.AdapterName.Length > 0 ? c.AdapterName : c.ProfileName.Length > 0 ? c.ProfileName : c.AdapterId;
+
+    /// <summary>上行选择变了才记一次；和 Windows 报告的上网连接不一致时警告（同一对只警告一次）。</summary>
+    private static void LogChoice(UplinkChoice choice, UplinkProbe.Result probe, string? previousId, string? previousName)
+    {
+        var c = choice.Candidate;
+        lock (LogLock)
+        {
+            var key = c.AdapterId + "|" + c.ProfileName;
+            if (!string.Equals(key, _lastLoggedChoice, StringComparison.OrdinalIgnoreCase))
+            {
+                _lastLoggedChoice = key;
+                if (previousId != null && previousName != null && !UplinkSelector.SameAdapter(previousId, c.AdapterId))
+                    Logger.Warn(Loc.T("uplink.switched", previousName, DisplayName(c)));
+                var details = new List<string> { c.HasIPv4Gateway ? Loc.T("uplink.hasGateway") : Loc.T("uplink.noGateway") };
+                if (c.Metric is int m) details.Add(Loc.T("uplink.metric", m));
+                var line = Loc.T("uplink.chosen", DisplayName(c), c.ProfileName.Length > 0 ? c.ProfileName : "?", string.Join(Loc.T("common.comma"), details));
+                if (!choice.IsFallback) Logger.Info(line);
+                else
+                {
+                    bool isWindows = UplinkSelector.SameAdapter(probe.WindowsDefaultAdapterId, c.AdapterId);
+                    Logger.Warn(line);
+                    Logger.Warn(isWindows ? Loc.T("uplink.fallbackWindows", DisplayName(c)) : Loc.T("uplink.fallbackVirtual", DisplayName(c)));
+                }
+            }
+
+            var winId = probe.WindowsDefaultAdapterId;
+            if (winId == null || UplinkSelector.SameAdapter(winId, c.AdapterId)) return;
+            if (!WarnedDifferences.Add(winId + ">" + c.AdapterId)) return;
+            var win = probe.Entries.Select(e => e.Candidate).FirstOrDefault(x => UplinkSelector.SameAdapter(x.AdapterId, winId));
+            var winName = win == null ? winId : DisplayName(win);
+            string reason;
+            if (win == null) reason = Loc.T("uplink.reasonRankedLower");
+            else
+            {
+                var x = UplinkSelector.Exclusion(win, out var marker);
+                reason = x != UplinkExclusion.None ? ExclusionText(x, marker)
+                    : choice.Kept ? Loc.T("uplink.reasonKeptCurrent") : Loc.T("uplink.reasonRankedLower");
+            }
+            Logger.Warn(Loc.T("uplink.differsFromWindows", winName, reason, DisplayName(c)));
+        }
+    }
+
+    /// <summary>候选上行被排除的原因（给日志和诊断看）。</summary>
+    public static string ExclusionText(UplinkExclusion x, string? marker) => x switch
+    {
+        UplinkExclusion.Virtual => Loc.T("uplink.reasonVirtual", marker ?? "?"),
+        UplinkExclusion.WifiDirect => Loc.T("uplink.reasonWifiDirect"),
+        UplinkExclusion.Dongle => Loc.T("uplink.reasonDongle"),
+        UplinkExclusion.Loopback => Loc.T("uplink.reasonLoopback"),
+        UplinkExclusion.NotConnected => Loc.T("uplink.reasonNotConnected"),
+        _ => "-",
+    };
 
     public static string BandText(TetheringWiFiBand b) => b switch
     {
@@ -159,6 +261,7 @@ public sealed class HotspotController
         {
             var mgr = ctx.Manager;
             var state = Map(mgr.TetheringOperationalState);
+            if (state == HotspotState.Off) ForgetCurrentUplink();   // 热点没开：下次重新挑最好的上行
             string? ssid = null, band = null, auth = null;
             try
             {
@@ -259,6 +362,7 @@ public sealed class HotspotController
 
     public async Task StartAsync(AppSettings s, CancellationToken ct = default)
     {
+        if (!IsOnQuiet()) ResetUplink();   // 要新开热点：按当前网络重新挑上行
         bool pinned = false;
         if (Pin != null && !IsOnQuiet())
             pinned = await Pin.BeforeStartAsync(s, ct);
@@ -304,6 +408,7 @@ public sealed class HotspotController
         {
             throw new HotspotException(Loc.T("hotspot.startingHotspotTimedOutNo"));
         }
+        finally { InvalidateContext(); }
         if (r.Status != TetheringOperationStatus.Success)
             throw new HotspotException(Loc.T("hotspot.hotspotFailedStart2") + StatusText(r.Status) + (string.IsNullOrWhiteSpace(r.AdditionalErrorMessage) ? "" : " - " + r.AdditionalErrorMessage));
     }
@@ -325,9 +430,10 @@ public sealed class HotspotController
         }
         finally
         {
-            // 热点关了：断开钉住用的 D-Link 客户端连接，恢复跃点数
+            // 热点关了：断开钉住用的 D-Link 客户端连接，恢复跃点数；下次开热点重新挑上行
             Pin?.Release(Loc.T("hotspot.hotspotStopped"));
             ChannelInfo.ForgetGoChannel();
+            ResetUplink();
         }
     }
 

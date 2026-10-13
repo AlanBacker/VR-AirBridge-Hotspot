@@ -20,6 +20,9 @@ public static class IpHelper
     [DllImport("iphlpapi.dll", SetLastError = true)]
     private static extern uint GetIpNetTable(IntPtr pIpNetTable, ref int pdwSize, bool bOrder);
 
+    [DllImport("iphlpapi.dll", SetLastError = true)]
+    private static extern uint GetIpForwardTable(IntPtr pIpForwardTable, ref int pdwSize, bool bOrder);
+
     /// <summary>所有 IPv4 UDP 监听端点及其所属进程号。</summary>
     public static List<UdpListener> GetUdpListeners()
     {
@@ -81,6 +84,44 @@ public static class IpHelper
             }
         }
         finally { Marshal.FreeHGlobal(buf); }
+        return result;
+    }
+
+    /// <summary>
+    /// IPv4 默认路由（0.0.0.0/0）在每个接口上的最小有效跃点数，key = 接口索引。
+    /// Vista 以后 MIB_IPFORWARDROW.dwForwardMetric1 = 路由跃点 + 接口跃点，也就是 Windows 实际选路用的值。
+    /// </summary>
+    public static Dictionary<int, int> GetDefaultRouteMetrics()
+    {
+        var result = new Dictionary<int, int>();
+        int size = 0;
+        GetIpForwardTable(IntPtr.Zero, ref size, false);
+        for (int attempt = 0; attempt < 5; attempt++)
+        {
+            int sz = size + 4096;
+            IntPtr buf = Marshal.AllocHGlobal(sz);
+            try
+            {
+                uint rc = GetIpForwardTable(buf, ref sz, false);
+                if (rc == ERROR_INSUFFICIENT_BUFFER) { size = sz; continue; }
+                if (rc != 0) return result;
+                int n = Marshal.ReadInt32(buf);
+                IntPtr row = buf + 4;
+                // MIB_IPFORWARDROW: 14 个 DWORD = Dest, Mask, Policy, NextHop, IfIndex, Type, Proto, Age, NextHopAS, Metric1..5
+                for (int i = 0; i < n; i++)
+                {
+                    uint dest = (uint)Marshal.ReadInt32(row);
+                    uint mask = (uint)Marshal.ReadInt32(row + 4);
+                    int ifIndex = Marshal.ReadInt32(row + 16);
+                    int metric = Marshal.ReadInt32(row + 36);
+                    if (dest == 0 && mask == 0 && ifIndex > 0 && metric >= 0)
+                        result[ifIndex] = result.TryGetValue(ifIndex, out var m) ? Math.Min(m, metric) : metric;
+                    row += 56;
+                }
+                return result;
+            }
+            finally { Marshal.FreeHGlobal(buf); }
+        }
         return result;
     }
 }

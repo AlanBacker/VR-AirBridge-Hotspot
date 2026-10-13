@@ -109,6 +109,14 @@ public class InternetTests
             error = "";
             return true;
         }
+        public readonly Dictionary<string, (int IfIndex, string Description)> Adapters = new(StringComparer.OrdinalIgnoreCase);
+        public bool TryFindAdapter(string name, out int ifIndex, out string description)
+        {
+            if (Adapters.TryGetValue(name, out var a)) { ifIndex = a.IfIndex; description = a.Description; return true; }
+            ifIndex = -1;
+            description = "";
+            return false;
+        }
     }
 
     private const int GoIf = 21, UpIf = 7;
@@ -124,6 +132,67 @@ public class InternetTests
         var ops = new FakeNetOps();
         int saves = 0;
         return (new NatManager(() => s, () => saves++, ops), s, ops, () => saves);
+    }
+
+    // ---------------------------------------------------------------- 虚拟网卡绝不当上行开转发
+
+    private const int ZtIf = 9;
+    private const string ZtName = "ZeroTier One [68bea79acf8db002]";
+    private static readonly UplinkInfo ZeroTierUp = new(ZtName, "ZeroTier Virtual Port", "{ZT}", ZtIf, IPAddress.Parse("10.147.17.5"),
+        IPAddress.Parse("25.255.255.254"), Array.Empty<IPAddress>());
+
+    [Fact]
+    public void Allowed_NeverEnablesForwardingOnVirtualUplink()
+    {
+        var (nat, s, ops, _) = New(allow: true);
+        ops.Forwarding[GoIf] = false;
+        ops.Forwarding[ZtIf] = false;
+        var st = nat.Reconcile(Go, ZeroTierUp, icsServing: false, isAdmin: true);
+        Assert.True(st.Ok);
+        Assert.True(ops.Forwarding[GoIf]);
+        Assert.False(ops.Forwarding[ZtIf]);
+        Assert.DoesNotContain($"fwd {ZtIf} on", ops.Calls);
+        Assert.Equal(new[] { Go.Name }, s.Revert.ForwardingEnabledOn);
+        Assert.True(NatManager.IsVirtualUplink(ZeroTierUp));
+        Assert.False(NatManager.IsVirtualUplink(Up));
+    }
+
+    [Fact]
+    public void Admin_TurnsOffForwardingWeEnabledOnVirtualAdapterByMistake_LeavesHotspotAdaptersAlone()
+    {
+        var (nat, s, ops, _) = New(allow: true);
+        ops.Nats.Add(new NatInfo("VRAirBridgeNat", "192.168.137.0/24", true));
+        const string oldGo = "本地连接* 3";
+        ops.Adapters[ZtName] = (ZtIf, "ZeroTier Virtual Port");
+        ops.Adapters[oldGo] = (33, "Microsoft Wi-Fi Direct Virtual Adapter #3");
+        ops.Adapters[Go.Name] = (GoIf, Go.Description);
+        ops.Forwarding[ZtIf] = true;
+        ops.Forwarding[33] = true;
+        ops.Forwarding[GoIf] = true;
+        ops.Forwarding[UpIf] = true;
+        s.Revert.ForwardingEnabledOn.AddRange(new[] { Go.Name, ZtName, oldGo, Up.Name });
+
+        var st = nat.Reconcile(Go, Up, icsServing: false, isAdmin: true);
+        Assert.True(st.Ok);
+        Assert.False(ops.Forwarding[ZtIf]);
+        Assert.True(ops.Forwarding[33]);
+        Assert.True(ops.Forwarding[GoIf]);
+        Assert.True(ops.Forwarding[UpIf]);
+        Assert.Equal(new[] { Go.Name, oldGo, Up.Name }, s.Revert.ForwardingEnabledOn);
+        Assert.Equal(new[] { $"fwd {ZtIf} off" }, ops.Calls);
+    }
+
+    [Fact]
+    public void NotAdmin_DoesNotTouchVirtualAdapterForwarding()
+    {
+        var (nat, s, ops, _) = New(allow: true);
+        ops.Adapters[ZtName] = (ZtIf, "ZeroTier Virtual Port");
+        ops.Forwarding[ZtIf] = true;
+        s.Revert.ForwardingEnabledOn.Add(ZtName);
+        nat.Reconcile(Go, Up, icsServing: false, isAdmin: false);
+        Assert.True(ops.Forwarding[ZtIf]);
+        Assert.Empty(ops.Calls);
+        Assert.Contains(ZtName, s.Revert.ForwardingEnabledOn);
     }
 
     [Fact]

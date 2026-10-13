@@ -21,6 +21,8 @@ public interface INetOps
     bool RemoveNat(string name);
     bool? GetForwarding(int ifIndex);
     bool SetForwarding(int ifIndex, bool enabled, out string error);
+    /// <summary>按网卡名（接口别名）找 IPv4 接口索引和描述；找不到返回 false。</summary>
+    bool TryFindAdapter(string name, out int ifIndex, out string description);
 }
 
 /// <summary>真正改系统的实现：WMI 读取，PowerShell New-NetNat / Remove-NetNat / Set-NetIPInterface 修改。</summary>
@@ -30,6 +32,22 @@ public sealed class SystemNetOps : INetOps
     public List<NatInfo> GetNats() => NatManager.GetNats();
     public bool? GetForwarding(int ifIndex) => NatManager.GetForwarding(ifIndex);
     public bool RemoveNat(string name) => NatManager.Remove(name);
+
+    public bool TryFindAdapter(string name, out int ifIndex, out string description)
+    {
+        ifIndex = -1;
+        description = "";
+        try
+        {
+            var n = System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces()
+                .FirstOrDefault(x => string.Equals(x.Name, name, StringComparison.OrdinalIgnoreCase));
+            if (n == null) return false;
+            ifIndex = NetworkInfo.GetIPv4Index(n);
+            description = n.Description ?? "";
+            return true;
+        }
+        catch { return false; }
+    }
 
     public bool CreateNat(string name, string prefix, out string error)
     {
@@ -63,6 +81,8 @@ public sealed class NatManager
     private readonly INetOps _ops;
     private DateTime _nextCreateAttempt = DateTime.MinValue;
     private DateTime _nextForwardingCheck = DateTime.MinValue;
+    private DateTime _nextVirtualCleanup = DateTime.MinValue;
+    private readonly HashSet<string> _skippedVirtualUplinks = new(StringComparer.OrdinalIgnoreCase);
     private string? _lastLoggedState;
     private NatStatus _status = new(NatProvider.None, Loc.T("nat.notRunning"), false);
 
@@ -80,6 +100,7 @@ public sealed class NatManager
     {
         _nextCreateAttempt = DateTime.MinValue;
         _nextForwardingCheck = DateTime.MinValue;
+        _nextVirtualCleanup = DateTime.MinValue;
     }
 
     public static List<NatInfo> GetNats()
@@ -113,6 +134,7 @@ public sealed class NatManager
     public NatStatus Reconcile(GoAdapterInfo? go, UplinkInfo? uplink, bool icsServing, bool isAdmin)
     {
         var s = _settings();
+        if (isAdmin) CleanupVirtualForwarding(go);
         if (!s.Internet.Allow)
             return ReconcileLanOnly(go, uplink, icsServing, isAdmin);
         if (go?.Ip == null || go.Mask == null || !go.HasUsableIp)
@@ -262,7 +284,13 @@ public sealed class NatManager
         _nextForwardingCheck = DateTime.UtcNow.AddSeconds(30);
         var s = _settings();
         var targets = new List<(int idx, string name)> { (go.IfIndex, go.Name) };
-        if (uplink != null && uplink.IfIndex > 0) targets.Add((uplink.IfIndex, uplink.Name));
+        if (uplink != null && uplink.IfIndex > 0)
+        {
+            // 绝不在虚拟网卡（ZeroTier、Hyper-V、VPN……）或 Wi-Fi Direct 上开转发：它们不是真正的上行
+            if (!IsVirtualUplink(uplink)) targets.Add((uplink.IfIndex, uplink.Name));
+            else if (_skippedVirtualUplinks.Add(uplink.Name))
+                Logger.Warn(Loc.T("nat.skipVirtualUplinkForwarding", uplink.Name, uplink.Description));
+        }
         foreach (var (idx, name) in targets)
         {
             if (idx <= 0) continue;
@@ -279,6 +307,37 @@ public sealed class NatManager
                 }
             }
             else Logger.Warn(Loc.T("nat.failedEnableIpv4Forwarding", name, err));
+        }
+    }
+
+    /// <summary>上行是不是虚拟网卡 / Wi-Fi Direct（这种网卡上不开转发）。</summary>
+    public static bool IsVirtualUplink(UplinkInfo uplink) =>
+        UplinkSelector.IsVirtualOrWifiDirect(uplink.Name, uplink.Description);
+
+    /// <summary>
+    /// 以前的版本可能把 ZeroTier 之类的虚拟网卡当成上行并打开了它的 IPv4 转发（记在还原列表里）。
+    /// 管理员运行时把这些转发关掉（恢复原状）并移出还原列表。热点网卡（Wi-Fi Direct）不动。每分钟最多检查一次。
+    /// </summary>
+    private void CleanupVirtualForwarding(GoAdapterInfo? go)
+    {
+        var s = _settings();
+        if (s.Revert.ForwardingEnabledOn.Count == 0 || DateTime.UtcNow < _nextVirtualCleanup) return;
+        _nextVirtualCleanup = DateTime.UtcNow.AddSeconds(60);
+        foreach (var name in s.Revert.ForwardingEnabledOn.ToList())
+        {
+            if (go != null && string.Equals(name, go.Name, StringComparison.OrdinalIgnoreCase)) continue;
+            bool found = _ops.TryFindAdapter(name, out var idx, out var desc);
+            if (UplinkSelector.IsWifiDirectDescription(desc) || UplinkSelector.VirtualMarker(name, desc) == null) continue;
+            if (!found || idx <= 0) continue;   // 网卡现在不在：留在列表里，“还原”时按名字再关
+            var fw = _ops.GetForwarding(idx);
+            if (fw == false) { RemoveFromRevertList(name); continue; }
+            if (fw == null) continue;
+            if (_ops.SetForwarding(idx, false, out var err))
+            {
+                Logger.Info(Loc.T("nat.turnedOffVirtualForwarding", name));
+                RemoveFromRevertList(name);
+            }
+            else Logger.Warn(Loc.T("nat.failedTurnOffIpv4Forwarding", name, err));
         }
     }
 

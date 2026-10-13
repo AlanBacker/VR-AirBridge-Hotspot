@@ -60,7 +60,9 @@ public static class Diagnostics
         HotspotSnapshot? snap = null;
         Try(Loc.T("diag.hotspot"), () =>
         {
-            snap = new HotspotController().GetSnapshot();
+            var hc = new HotspotController();
+            if (dongle != null) hc.SetDongle(dongle.Guid, dongle.Mac);
+            snap = hc.GetSnapshot();
             L(Loc.T("diag.windowsMobileHotspot"));
             L(Loc.T("diag.stateNameBandSecurity", HotspotController.StateText(snap.State), snap.Ssid, snap.BandText, snap.AuthText));
             L(Loc.T("diag.sharedConnection", snap.UplinkName, snap.UplinkAdapterId));
@@ -96,6 +98,22 @@ public static class Diagnostics
             if (up == null) { L("  ?"); return; }
             L(Loc.T("diag.ipGatewayDns", up.Name, up.Description, up.Ip, up.Gateway, string.Join(", ", up.Dns)));
             L(Loc.T("diag.ipv4Forwarding", YesNo(NatManager.GetForwarding(up.IfIndex))));
+        });
+        Try(Loc.T("diag.uplink"), () =>
+        {
+            // all candidate connections and why each one was (not) chosen as the uplink
+            var probe = UplinkProbe.Probe(dongle?.Guid, dongle?.Mac);
+            var win = probe.Entries.Select(e => e.Candidate).FirstOrDefault(c => UplinkSelector.SameAdapter(c.AdapterId, probe.WindowsDefaultAdapterId));
+            L(Loc.T("diag.uplinkCandidates", win == null ? "-" : win.AdapterName.Length > 0 ? win.AdapterName : win.ProfileName));
+            foreach (var c in UplinkSelector.Rank(probe.Entries.Select(e => e.Candidate)))
+            {
+                var x = UplinkSelector.Exclusion(c, out var marker);
+                var verdict = UplinkSelector.SameAdapter(c.AdapterId, snap?.UplinkAdapterId) ? Loc.T("diag.uplinkChosen")
+                    : x == UplinkExclusion.None ? Loc.T("diag.uplinkEligible")
+                    : Loc.T("diag.uplinkExcluded", HotspotController.ExclusionText(x, marker));
+                L(Loc.T("diag.uplinkCandidate", c.AdapterName.Length > 0 ? c.AdapterName : "?", c.ProfileName.Length > 0 ? c.ProfileName : "?",
+                    c.Connectivity, YesNo(c.HasIPv4Gateway), c.Metric?.ToString() ?? "-", verdict));
+            }
         });
         L("");
 

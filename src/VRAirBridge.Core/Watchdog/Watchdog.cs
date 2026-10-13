@@ -190,6 +190,8 @@ public sealed class Watchdog : IDisposable
     {
         var now = DateTime.UtcNow;
         var dongle = DongleInfo.Find();
+        // 告诉热点控制器哪块是 D-Link：它绝不能被当作上行（拔掉时保留上次的，避免误判）
+        if (dongle != null) _hc.SetDongle(dongle.Guid, dongle.Mac);
         TrackDongle(dongle);
         TrackDriver(dongle);
         var snap = _hc.GetSnapshot();
