@@ -1,348 +1,112 @@
-# VR Air Bridge 热点
+<p align="center">
+  <img src="docs/images/app-256.png" width="96" alt="VR Air Bridge Hotspot icon">
+</p>
 
-用 **D-Link DWA-F18（VR Air Bridge，Realtek RTL8852AU）** 在 Windows 上开一个 **5 GHz / Wi-Fi 6 (802.11ax) / 80 MHz / 2×2** 的满血热点，给 Quest 串流或者手机、电脑上网用。**不需要 Meta 的软件**。
+# VR Air Bridge Hotspot
 
-- 只有一个文件：`VRAirBridgeHotspot.exe`，不用安装，也不用装 .NET。
-- 系统要求：Windows 10 2004 或更新版本 / Windows 11，64 位。
-- 热点上的设备会拿到 `192.168.137.x` 的地址，通过电脑现有的网络（Wi-Fi 或网线）上网。
-- **不会断开电脑自己的 Wi-Fi**：热点只开在 D-Link 网卡上，电脑原来的网卡继续负责上网。
-- **自带网卡驱动**：电脑上没有 D-Link 驱动也没关系，点“安装驱动”就行，不用联网，也不用装别的软件。
-- **界面支持 4 种语言**：English、简体中文、日本語、한국어，默认跟随 Windows 显示语言，可以随时切换；深色 / 浅色主题默认跟随 Windows。
+**English** · [简体中文](docs/README.zh-CN.md) · [日本語](docs/README.ja.md) · [한국어](docs/README.ko.md)
 
----
+[![Release](https://img.shields.io/github/v/release/AlanBacker/VR-AirBridge-Hotspot?label=download)](https://github.com/AlanBacker/VR-AirBridge-Hotspot/releases/latest)
+[![Build](https://github.com/AlanBacker/VR-AirBridge-Hotspot/actions/workflows/build.yml/badge.svg)](https://github.com/AlanBacker/VR-AirBridge-Hotspot/actions/workflows/build.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
-## 它能做什么
+Turns the D-Link DWA-F18 (Meta's "VR Air Bridge", Realtek RTL8852AU) into a standalone 5 GHz / 80 MHz / Wi-Fi 6 / 2×2 hotspot for streaming PC VR to a Quest.
+No Meta software is needed, and the PC's own Wi-Fi stays connected.
 
-| 功能 | 说明 |
-|---|---|
-| 一键开关热点 | 用的是 Windows 自带的“移动热点”，固定 5 GHz，自动确认热点开在 D-Link 网卡上（按 MAC 地址判断） |
-| 看门狗 | 每 4 秒检查一次：热点掉了自动重开（2、4、8……最多 60 秒退避重试），网卡被拔掉/禁用会提示；你手动点“停止热点”后不会被自动重开 |
-| 自带 DHCP 服务器 | Windows 的网络共享（ICS）经常坏掉，设备连上后只拿到 `169.254.x.x`。本软件检测到 ICS 不发地址时，会自己给设备发 `192.168.137.100–199` 的地址（租期 12 小时） |
-| 自带 NAT | ICS 不工作时，用 Windows 自带的 WinNAT（名为 `VRAirBridgeNat`）让热点上的设备上网 |
-| 信标核对 | 用电脑上另一块无线网卡扫描热点的信标，核对“5 GHz + 80 MHz + 802.11ax + 2 空间流 = 满血” |
-| 一键优化 | 关闭 D-Link 网卡和 USB 的各种省电、关闭“无设备连接时自动关闭热点”、放行防火墙等（只需做一次） |
-| 修复网络 | 设备拿不到 IP / 上不了网时用：重启热点和 ICS，处理 Hyper-V 的 Default Switch 和 ICS 的“幽灵记录” |
-| 托盘 | 托盘图标的颜色表示状态（绿＝运行中，橙＝正在启动/重试，红＝出错，灰＝已停止），设备连上/断开会弹通知 |
-| 开机自启动 | 用 Windows 任务计划（最高权限），开机登录后自动在托盘里启动，不会每次弹管理员确认 |
-| 内置驱动 | 自带 D-Link/Realtek 驱动 1.27.831.2023（`netrtwlanufb.inf`）。插上网卡但没有驱动时会提示，点“安装驱动”就能装好，见[安装驱动](#安装驱动) |
-| 信道面板 | 显示热点当前信道、附近的 5GHz Wi-Fi、各 80MHz 块有多挤；还有实验功能“钉住到网络”，见[信道](#信道) |
-| 互联网开关 | 可以设成“仅局域网”：头显只能连到这台电脑，不经电脑上网，串流不受影响，见[是否允许访问互联网](#是否允许访问互联网) |
+<p align="center">
+  <img src="docs/images/running-en-dark.png" width="900" alt="Main window: hotspot running at full speed on channel 149, two devices connected">
+</p>
 
-## 和 Meta 官方软件的区别
+## Features
 
-| | Meta 官方方案 | 本软件 |
+- **Beacon check**: reads channel, width, protocol and spatial streams from the hotspot's real beacon (needs a second Wi-Fi adapter).
+- **Own DHCP and NAT**: devices get an address and internet without relying on Windows ICS.
+- **Internet switch**: turn off *Allow connected devices to access the internet* for LAN only; streaming keeps working.
+- **Bundled driver**: *Install driver* restores the driver that Meta's uninstaller removes.
+- **Channel panel**: nearby 5 GHz networks per 80 MHz block, plus the experimental *Pin to network*.
+- **Watchdog and tray**: a dropped hotspot is restarted, and the app keeps running in the tray.
+- **One-click tools**: *One-click optimize*, *Repair network*, *Revert / uninstall*.
+- **4 languages** (English, 简体中文, 日本語, 한국어), dark and light themes.
+
+## Requirements
+
+- Windows 10 2004 or later, or Windows 11, 64-bit.
+- The D-Link DWA-F18, plus a second adapter (Wi-Fi or Ethernet) that keeps the PC online.
+- Administrator rights.
+
+## Quick start
+
+1. Download `VRAirBridgeHotspot.exe` from [Releases](https://github.com/AlanBacker/VR-AirBridge-Hotspot/releases) into a fixed folder (single file, nothing to install). If SmartScreen appears, click **More info → Run anyway** (the exe is unsigned).
+2. Run it and confirm the administrator prompt.
+3. Plug in the DWA-F18; if it has no driver, click **Install driver**.
+4. The first run sets the name `AirBridge-XXXX` and a random password. To change them, edit **Hotspot** in the sidebar and click **Save & apply**.
+5. Click **Start hotspot** and connect the headset (it gets `192.168.137.100–199`). Then pick this PC in your streaming app (Virtual Desktop, Steam Link, …).
+
+<table>
+  <tr>
+    <td align="center" width="50%"><img src="docs/images/start-en-light.png" alt="Get started page, light theme"><br>Setup</td>
+    <td align="center" width="50%"><img src="docs/images/lanonly-en-dark.png" alt="Internet access turned off (LAN only)"><br>LAN-only</td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/images/pin-en-dark.png" alt="Channel panel with Pin to network"><br>Channel</td>
+    <td align="center"><img src="docs/images/traymenu-en-dark.png" alt="Tray menu"><br>Tray</td>
+  </tr>
+</table>
+
+## Settings
+
+Settings live in `config.json` next to the exe, and most can be changed in the app. After editing the file by hand, click **Save & apply** or restart the app.
+
+| Key | Default | Meaning |
 |---|---|---|
-| 需要的软件 | Meta Quest Link 电脑软件和它的后台服务（OVRService） | 只要这一个 exe |
-| 网卡驱动 | 随 Meta 软件一起安装，卸载 Meta 软件时会被一起删掉 | 软件内置，点“安装驱动” |
-| 谁能连 | 专门给 Quest 用 | 任何设备：Quest、iPhone、安卓、笔记本…… |
-| 热点名 / 密码 | 由 Meta 软件管理 | 自己设置，在软件里改完点“保存并应用” |
-| ICS 坏了（设备拿到 169.254） | 只能自己排查 | 自带 DHCP 和 NAT 自动接管 |
-| 掉线 | — | 看门狗自动重开 |
-| 满血核对 | — | 扫描信标显示信道 / 带宽 / 协议 / 空间流 |
-
-如果电脑上还装着 Meta 的软件，本软件运行时它的 OVRService 最好不要同时运行（它也会去控制这块网卡）。“一键优化”会询问你是否把 OVRService 改成“手动”启动；点“还原 / 卸载”会改回“自动”。已经卸载了 Meta 软件的，看[卸载 Meta 软件后](#卸载-meta-软件后)。
-
----
-
-## 快速开始
-
-1. **下载并放到固定位置**：从 [Releases 页面](https://github.com/AlanBacker/VR-AirBridge-Hotspot/releases)下载 `VRAirBridgeHotspot.exe`，放到一个固定的文件夹，例如 `D:\VRAirBridge\`。配置（`config.json`）、DHCP 租约（`dhcp-leases.json`）和日志（`logs\`）都保存在 exe 旁边；开机自启动也会记住 exe 的位置。
-2. **插上 D-Link 网卡**。这台电脑没有它的驱动也没关系：下一步打开软件后会显示“开始使用”页，并弹出“D-Link 网卡需要驱动”，点“立即安装”（或“开始使用”第 ① 步里的“安装驱动”）即可（软件内置驱动，见[安装驱动](#安装驱动)）。
-3. **双击运行**，在弹出的“用户账户控制”里点“是”。本软件需要管理员权限：自带的 DHCP、NAT、一键优化、修复网络都要用到。
-   - 第一次运行如果出现“Windows 已保护你的电脑”，点“更多信息”→“仍要运行”。这个 exe 没有数字签名，所以会有这个提示。
-4. **第一次运行时**，软件会自动设置热点名 `AirBridge-XXXX`（XXXX 是网卡 MAC 地址后 4 位）和一个 12 位的随机密码。如果 Windows 移动热点里已经有 `AirBridge-` 开头的热点名，就沿用原来的名字和密码，已经连过的设备不用重新输入。在右侧栏“热点”里点密码框旁边的眼睛图标可以看到密码。
-5. **点右侧栏“维护”里的“一键优化（管理员设置）”**，只需要做一次。如果提示要重新插拔网卡，就照做。
-6. **点右上角的“启动热点”**。默认勾选了“启动时自动开热点”，打开软件时热点会自动开启。左上角的状态变成绿色的“运行中”就好了。
-7. **先用 iPhone 测试**：
-   - iPhone 设置 → 无线局域网 → 选 `AirBridge-XXXX` → 输入密码。
-   - 连上后点这个网络右边的 ⓘ，“IP 地址”应该是 **192.168.137.x**，路由器是 192.168.137.1。
-   - 打开网页确认能上网。主界面的“已连接的设备”里会出现这台 iPhone（名字、MAC、IP）。
-8. **Quest**：设置 → Wi-Fi → 连接同一个热点，然后用你习惯的串流软件（Virtual Desktop、Steam Link 等）连接电脑。
-9. **想开机自动开好热点**：在右侧栏“选项”里打开“开机自启动（任务计划，最高权限）”和“启动时自动开热点”。
-
-### 界面说明
-
-窗口默认 1200×780，最小 1000×640（1080p 屏幕、125% 缩放也放得下）。分成四块：
-
-**顶栏**
-
-- 左边：软件名和状态胶囊（已停止 / 运行中 / 有问题）。
-- 右边：“刷新”（立即重新检测）、“文档”（打开 [GitHub 上的说明](https://github.com/AlanBacker/VR-AirBridge-Hotspot)）、**界面语言**下拉框、深色 / 浅色切换按钮、主按钮“启动热点 / 停止热点”。
-
-**“开始使用”页**（第一次运行，或者网卡还没有驱动时显示）
-
-- 三步：① 安装驱动 ② 设置热点名和密码 ③ 启动并连接头显。
-- 三张卡片“驱动状态 / 热点设置 / 连接头显”，每张都有实时状态点（绿＝好了，橙＝等待中，红＝有问题）。
-- 热点成功运行过一次，或者点“跳过，进入主界面”后就不再自动显示；想再看可以点右侧栏“选项”里的“显示‘开始使用’页”。
-
-**主界面**
-
-- **热点**卡片：热点名、频段、信道 / 带宽 / 协议 / 空间流，右上角的“满血”标记（需要信标核对，见下面的“查看信标”）。展开“详情”可以看到 Wi-Fi Direct 虚拟网卡等信息。
-- **信道**卡片：热点信道、附近的 5GHz Wi-Fi、各 80MHz 块有多挤、“扫描”按钮；打开“高级”后还有实验功能“钉住到网络”，见[信道](#信道)。
-- **已连接的设备**：名称、MAC、IP、状态、最后在线时间。右键可以复制。
-- **日志**：可以“复制全部”“清空”；打开“高级”后可以勾选“显示调试信息”。
-- 每张卡片点标题右边的箭头可以折叠。
-
-**右侧栏**（可以滚动；最上面有“搜索设置”和“高级”开关）
-
-- **热点**：热点名称（最长 32 字节，一个汉字算 3 字节）、密码（8–63 位英文字母、数字或英文符号；眼睛图标＝显示，骰子图标＝随机生成）、频段（推荐 5 GHz）、加密（推荐 WPA2，兼容性最好）。改完点“保存并应用”，会自动重开热点。
-- **网络**：DHCP（谁在给设备发地址：Windows ICS 或本软件）、NAT（上网）、上网用的连接，以及开关“**允许连接的设备访问互联网**”（关掉＝仅局域网，见[是否允许访问互联网](#是否允许访问互联网)）。打开“高级”后显示 DHCP 地址池。
-- **驱动**：网卡有没有插上、驱动版本和状态，“安装驱动 / 重新安装驱动”按钮。
-- **选项**：开机自启动、启动时自动开热点、缩到托盘、退出时保持热点开启、主题、界面语言。
-- **维护**：一键优化、修复网络、查看信标、打开日志、复制诊断信息、还原 / 卸载；打开“高级”后显示“Meta 残留”检查。
-- **关于**：版本、许可、项目主页。
-
-**状态栏**（窗口最下面）：驱动 · DHCP · NAT · 互联网 · 已连接 N 台 · 信道，每项前面有状态点。
-
-所有提示都在软件窗口里显示（右下角的通知和窗口内的对话框），不会弹系统消息框。
-
-**关闭窗口**：默认缩到托盘，热点和看门狗继续工作。真正退出请在托盘图标上右键（菜单里也能启动 / 停止热点、切换“允许访问互联网”）：
-
-- “退出（热点保持开启）”
-- “退出并关闭热点”
-- 注意：如果当前是本软件在发 IP（状态栏 DHCP 显示“本软件”），退出后新连上的设备就拿不到地址了。建议让软件一直在托盘里运行。
-
-### 界面语言和主题
-
-- **语言**：顶栏的语言下拉框（文字图标）或右侧栏“选项 → 界面语言”。可选 English、简体中文、日本語、한국어 和“跟随 Windows”；切换后立即生效，不用重启。托盘菜单、通知、对话框和命令行输出都会跟着变。
-- 默认（“跟随 Windows”）按 Windows 显示语言选择：中文 → 简体中文，日语 → 日本語，韩语 → 한국어，其它 → English。
-- 选择保存在 `config.json` 的 `ui.language`（`auto` / `en` / `zh-CN` / `ja` / `ko`）。
-- **主题**：顶栏的太阳 / 月亮按钮在深色和浅色之间切换；右侧栏“选项 → 主题”还可以选“跟随系统”（默认，跟随 Windows 的“应用模式”，Windows 改了会自动跟着变）。保存在 `ui.theme`（`system` / `dark` / `light`）。
-
----
-
-## 常见问题
-
-### 设备连上了，但 IP 是 169.254.x.x / 提示“无互联网连接”
-
-`169.254.x.x` 表示设备没有从电脑拿到地址，也就是 Windows ICS 的 DHCP 没工作。这在装了 Hyper-V、WSL、Docker，或者换过网卡的电脑上很常见。
-
-1. 确认软件是**以管理员身份运行**的：窗口标题里不能有“未以管理员身份运行”。
-   - 管理员模式下，本软件发现 ICS 不发地址，会在热点开启后十几秒内自动接管。
-   - 接管后，“网络服务 → DHCP”会显示“本软件”。
-2. 在设备上“忽略此网络”，然后重新连接。
-3. 还不行就点“**修复网络**”。它会依次：关热点 → 处理 Default Switch（会先问你）→ 清理 ICS 幽灵记录 → 重启 ICS 服务 → 开热点，最后给出报告。
-4. 装了卡巴斯基等安全软件的，看下面的[卡巴斯基](#卡巴斯基kaspersky等安全软件)一节。
-5. 点“复制诊断信息”，把内容发给帮你的人。诊断信息里没有密码。
-
-### Hyper-V / WSL / Docker 的 “vEthernet (Default Switch)”
-
-Hyper-V 的默认虚拟交换机，经常在 ICS 重启后抢走热点的 DHCP。热点上的设备因此只能拿到 169.254 地址。
-
-- “修复网络”检测到它时会**先问你**要不要禁用；选“否”也没关系，本软件自带的 DHCP 是直接绑定在热点网卡上的，照样能发地址。
-- 被本软件禁用的 Default Switch，点“还原 / 卸载”会重新启用。也可以在“控制面板 → 网络连接”（Win+R 输入 `ncpa.cpl`）里右键启用。之后要用 WSL / Docker / Hyper-V 虚拟机前记得启用它。
-
-### 路由器管理页面里看不到 Quest / 手机
-
-这是正常的。热点上的设备在电脑后面的独立小网络里（192.168.137.x），通过电脑的 NAT 上网，路由器只能看到电脑本身。要看有哪些设备连着，请看本软件的“已连接的设备”列表。
-
-### 卡巴斯基（Kaspersky）等安全软件
-
-卡巴斯基的防火墙 / 网络攻击拦截可能会拦掉 DHCP（UDP 67 端口），或者把热点网络当成“公用网络”。现象是设备一直拿不到 IP，或者能拿到 IP 但上不了网。软件检测到卡巴斯基时，会在顶部给出提示。
-
-- 卡巴斯基 → 设置 → 安全防护 → 防火墙 → 网络：把名字像“本地连接* 13”（Microsoft Wi-Fi Direct Virtual Adapter）的那个网络改成“**受信任的网络**”或“本地网络”。
-- 把 `VRAirBridgeHotspot.exe` 加到“受信任的应用程序”（应用程序控制 → 管理应用程序 → 设为受信任）。
-- 不同版本的菜单名字略有不同。实在找不到，可以先暂停防护几分钟试一下，确认是不是它的问题。
-- Windows 自带防火墙的规则，本软件会自己添加：`VRAirBridge-DHCP-In`、`VRAirBridge-App-In`。
-
-### 热点开在了电脑自带的网卡上
-
-Windows 有时会把“移动热点”开在别的无线网卡上。软件会对比 MAC 地址发现这种情况，并自动纠正。
-
-- 先临时禁用**没在上网的**其它无线网卡，在 D-Link 上重开热点后，再把它们启用回来。
-- **正在上网的网卡绝不会被动**，所以不会断开电脑自己的 Wi-Fi。纠正不了时会重开一次热点，并在顶部提示。
-
-### 信标核对显示不是“满血”
-
-- “频段”要选 **5 GHz**。2.4 GHz 最多只有 802.11n / 40 MHz。
-- 先点一次“一键优化”，再重新插拔网卡：D-Link 驱动的“无线模式”要包含 ax。
-- 信道默认由 Windows 自动选（Windows 移动热点不能直接指定信道）。看“信道”卡片里哪个 80MHz 块比较空；如果提示“同信道还有其它 Wi-Fi”，可以关掉再开热点碰碰运气，或者试试实验功能“钉住到网络”，见[信道](#信道)。
-- 信标核对需要电脑上**另一块**无线网卡来扫描。没有的话这一栏会显示无法核对，不影响使用。
-
-### 防火墙 / “是否允许访问网络”弹窗
-
-管理员模式下，软件会自己添加防火墙规则，一般不会弹窗。如果弹了，勾选“专用网络”和“公用网络”后点“允许”。
-
-### 日志和诊断
-
-- 日志在 exe 旁边的 `logs\app-年月日.log`，点“打开日志”可直接打开。
-- 勾选“显示调试信息”可以在窗口里看到每个 DHCP 报文的收发。
-- 日志和诊断信息里**不会出现热点密码**。
-
----
-
-## 安装驱动
-
-软件里**自带** D-Link/Realtek 网卡驱动（`netrtwlanufb.inf`，版本 1.27.831.2023，日期 2023-08-31），不用联网，也不用装别的软件。
-
-- **插上网卡时自动提示**：D-Link 插着但这台电脑没有它的驱动，软件会弹出“D-Link 网卡需要驱动”，点“**立即安装**”。
-  - 点“稍后”：这次插着期间不再弹窗，拔下再插上会再问一次。
-  - 软件缩在托盘里时，等你打开窗口再弹。
-  - 顶部和“D-Link 网卡”卡片里会一直显示红色提示；这时点“启动热点”会提示“先安装驱动”。
-- **手动安装**：“D-Link 网卡”卡片 →“驱动”一行右边的“**安装驱动**”按钮。
-  - 已经装好内置版本时，按钮变成“重新安装驱动”（会先确认，热点会短暂中断）。
-  - 装的是别的版本时，软件会问你要不要换成内置版本。
-- 需要**管理员权限**，正常双击运行就是管理员。安装大约 10–40 秒。
-- 安装前会先校验内置的驱动文件（SHA-256），对不上就停止安装，不改动系统。
-- 安装用的是 Windows 自带的 `pnputil /add-driver ... /install`，结果会弹窗告诉你：
-
-  | 结果 | 怎么办 |
-  |---|---|
-  | 驱动安装成功 | 网卡马上可用，直接“启动热点” |
-  | 驱动已放入系统，插上网卡会自动装 | 网卡没插着时会这样，插上就行；插着却没装上，就拔下 D-Link 再插上 |
-  | 驱动已安装，需要重启电脑才能生效 | 重启电脑 |
-  | 驱动已安装，但 30 秒内没看到网卡 | 拔下 D-Link 再插上（或重启电脑） |
-  | 驱动安装失败 | 结果窗口里有 pnputil 的原始输出；点“复制诊断信息”，一起发给帮你的人 |
-
-- 命令行也可以装：以管理员身份打开命令提示符，运行 `VRAirBridgeHotspot.exe --install-driver`；只想看状态用 `--driver-status`。见[命令行参数](#命令行参数)。
-
-**分享给舍友时只发 exe（和这份说明）。** 不要连 `config.json` 一起发：里面有你的热点密码。舍友第一次运行时会生成他自己的热点名和密码。
-
----
-
-## 卸载 Meta 软件后
-
-- **Meta 的卸载程序会把 D-Link 网卡驱动一起删掉。** 卸载后插上网卡，软件会提示没有驱动：点“安装驱动”就行，见[安装驱动](#安装驱动)。
-- 卸载后电脑上通常还会留下下面这些文件夹。它们**可以放心手动删除**；本软件只在诊断信息里列出它们，**不会**替你删除。
-
-  | 位置 | 大小（参考） |
-  |---|---|
-  | `%LOCALAPPDATA%\Oculus` | 约 159 MB |
-  | `%APPDATA%\Oculus` | 约 2 MB |
-  | `C:\ProgramData\Oculus` | 约 4 MB |
-
-  把路径粘贴到资源管理器的地址栏就能打开。删除前先退出所有 Meta / Oculus 程序。
-- 驱动库里可能还留着 **`oculus_vigembus.inf`**：Facebook 2017 年的虚拟游戏手柄总线驱动。它不影响本软件；想删的话可以自己在管理员命令提示符里删：
-  1. 运行 `pnputil /enum-drivers`，找到“原始名称”是 `oculus_vigembus.inf` 的那一项，记下它的“发布名称”（形如 `oemNN.inf`，每台电脑不一样）。
-  2. 运行 `pnputil /delete-driver oemNN.inf`（把 `oemNN.inf` 换成上一步记下的名称）。
-
-  “复制诊断信息”或 `--diag` 的“Meta 残留”一节会直接显示这台电脑上对应的 `oemNN.inf`。
-- 诊断信息里还可能列出驱动库里“未登记”的 `oculus...` 残留文件夹（在 `C:\Windows\System32\DriverStore\FileRepository` 里，只有几 MB）。它们受系统保护，**不建议**手动删。
-- 任务计划程序里如果有 **`OVRToolkit-用户名`** 这个任务，它属于第三方软件 **OVR Toolkit**，**不是** Meta 的。不要删它，本软件也不会碰它。
-
----
-
-## 信道
-
-“信道”卡片显示：
-
-- **热点信道**：热点现在用的信道。需要另一块无线网卡扫到热点的信标，或点“查看信标”。
-- **附近 5GHz**：附近的 5GHz Wi-Fi（名称、信道/带宽、信号强度）。点“扫描”重新扫（约 5 秒）。电脑上只有 D-Link 一块无线网卡时，热点开着期间不扫描，免得打断串流。
-- **80MHz 块**：5GHz 的 80MHz 块分别有几个网络、最强的信号多强。Windows 热点只会用 36–48 或 149–161 这两块；52–144 是 DFS 信道，热点不会用。
-
-**钉住到网络（实验，默认关闭）**：Windows 不能直接指定热点信道，但在大多数网卡上，热点会跟这块网卡已经连着的 Wi-Fi 用同一个信道。选一个 5GHz Wi-Fi 后，每次启动热点时软件会：
-
-1. 把电脑上已保存的这个 Wi-Fi 的配置复制给 D-Link（改成“手动连接”，不会自动连）；
-2. 让 D-Link 连上它（最多等 15 秒），并把 D-Link 的跃点数设成 500，电脑上网仍然走原来的网卡；
-3. 开热点，然后核对热点确实在 D-Link 上、并且和这个 Wi-Fi 同一个信道。
-
-- 任何一步失败（连不上、驱动不支持、信道不一致），软件会关掉热点、断开 D-Link，按“不钉住”重新开启，并提示“**此驱动/系统不支持信道钉住，已自动回退**”。
-- 只能选 5GHz、非 DFS 信道、而且电脑上保存过密码（用内置网卡连过）的网络。选“自动（不钉住）”就关闭这个功能。
-- 停止热点时会断开 D-Link 的这个 Wi-Fi 连接；“还原 / 卸载”会删除复制给 D-Link 的配置，并恢复它的跃点数。
-- 需要管理员权限。改了设置后，下次启动热点时生效；想马上生效就“停止热点”再“启动热点”（头显会断开一下）。
-- 这是**实验功能**，效果取决于网卡驱动，不保证所有电脑都能用。
-
----
-
-## 是否允许访问互联网
-
-“选项”里的“**允许连接的设备访问互联网**”（托盘菜单里也有，默认开启）：
-
-- **开启（默认）**：本软件用 WinNAT（`VRAirBridgeNat`）加 IPv4 转发，让热点上的设备经电脑上网，DHCP 会下发 DNS。
-- **关闭（仅局域网）**：头显只能连到这台电脑，**串流不受影响**，但不会经电脑上网：
-  - 删除本软件的 WinNAT，关闭热点网卡的 IPv4 转发；
-  - DHCP 仍然发地址（网关仍是这台电脑），但不再下发 DNS 和域名。
-- 切换**立即生效，不用重启热点**。已经连着的设备要续租或重连后才不再拿到 DNS。
-- 只用电脑串流（Virtual Desktop、Steam Link 等）时，“仅局域网”更安全：头显不会经这台电脑访问外网。需要头显上网（更新系统、下载游戏）时再打开。
-- 注意：如果 Windows 自己的“网络共享”（ICS）正在为热点共享网络，它不受本软件控制，设备可能仍能经它上网。软件会在日志里提示。
-- 命令行：`VRAirBridgeHotspot.exe --internet off`（或 `on`）。软件正在运行时会通知它马上切换；没在运行时只保存设置，下次启动生效。
-
----
-
-## 配置文件 config.json
-
-在 exe 旁边，一般用界面修改就行。手动改完要在软件里点“保存并应用”，或者重启软件。
-
-| 字段 | 说明 |
+| `ssid` | `AirBridge-XXXX` | Hotspot name (XXXX = last 4 digits of the dongle's MAC) |
+| `password` | random, 12 chars | Hotspot password, 8–63 ASCII characters |
+| `band` | `5GHz` | `5GHz`, `2.4GHz` or `Auto` |
+| `internet.allow` | `true` | `false` = LAN only |
+| `channel.pinSsid` | `""` | Wi-Fi for *Pin to network*; empty = off |
+| `dhcp.*` | `auto`, `.100`–`.199`, 12 h | When the app serves DHCP (`auto` / `always` / `off`), pool, lease, fallback DNS |
+| `nat.*` | `auto`, `VRAirBridgeNat` | NAT mode (`auto` / `off`) and WinNAT name |
+| `ui.language` | `auto` | `en`, `zh-CN`, `ja`, `ko`; `auto` follows Windows |
+| `ui.theme` | `system` | `dark`, `light`; `system` follows Windows |
+
+## Command line
+
+It is a window app: to see output and exit codes, run `start /wait VRAirBridgeHotspot.exe <option>` in an administrator Command Prompt.
+
+| Option | Effect |
 |---|---|
-| `ssid` / `password` | 热点名 / 密码（8–63 位） |
-| `band` | `5GHz`（推荐）/ `2.4GHz` / `Auto` |
-| `auth` | `WPA2`（推荐）/ `WPA3Transition` / `WPA3`（需要较新的 Windows） |
-| `autoStart` | 开机自启动 |
-| `startHotspotOnLaunch` | 打开软件时自动开热点 |
-| `minimizeToTray` | 最小化 / 关闭窗口时缩到托盘 |
-| `keepHotspotOnClose` | 退出程序时保持热点开启 |
-| `watchdogIntervalSeconds` | 看门狗检查间隔（默认 4 秒） |
-| `dhcp.mode` | `auto`（ICS 不工作时由本软件发 IP，默认）/ `always`（总是由本软件发 IP）/ `off` |
-| `dhcp.poolStart` / `dhcp.poolEnd` | 地址池，默认 `192.168.137.100`–`192.168.137.199` |
-| `dhcp.leaseHours` | 租期，默认 12 小时 |
-| `dhcp.domainName` | 可选，发给设备的域名（DHCP 选项 15） |
-| `dhcp.fallbackDns` | 备用 DNS。电脑上没有 DNS 转发时，发给设备的是“电脑上网连接的 DNS + 这里的备用 DNS”，默认 `223.5.5.5`、`8.8.8.8` |
-| `nat.mode` / `nat.name` | `auto` / `off`；WinNAT 名字默认 `VRAirBridgeNat`。如果电脑上已经有别的 WinNAT 覆盖了 192.168.137.0/24，本软件不会和它抢 |
-| `internet.allow` | `true`（默认）＝允许连接的设备访问互联网；`false`＝仅局域网，见[是否允许访问互联网](#是否允许访问互联网) |
-| `channel.pinSsid` | 实验功能“钉住到网络”选的 Wi-Fi 名称；空＝不钉住（默认），见[信道](#信道) |
-| `ui.language` | 界面语言：`auto`（跟随 Windows，默认）/ `en` / `zh-CN` / `ja` / `ko` |
-| `ui.theme` | 主题：`system`（跟随 Windows，默认）/ `dark` / `light` |
-| `ui.advanced` | 右侧栏“高级”开关 |
-| `ui.setupDone` | “开始使用”页已经完成（不再自动显示） |
-| `revert` | 本软件改过哪些系统设置，供“还原”使用，请不要手动修改 |
+| `--diag [file]` | Saves diagnostics (no passwords) to a file, next to the exe by default, and exits |
+| `--driver-status` | Driver state; exit code 0 installed, 1 plugged in without driver, 2 not plugged in, 3 query failed |
+| `--install-driver` | Installs the bundled driver |
+| `--internet on\|off` | Allows or blocks internet for connected devices, instantly if the app is running |
+| `--lang xx` | Uses `en`, `zh-CN`, `ja` or `ko` for this run only |
+| `--uninstall` | Undoes the app's system changes (same as *Revert / uninstall*) |
 
-### 命令行参数
+## Troubleshooting
 
-| 参数 | 作用 | 退出码 |
-|---|---|---|
-| `--driver-status` | 显示 D-Link 驱动状态：有没有插上、装没装驱动、内置驱动包校验是否通过。只读 | 0＝已装驱动，1＝插着但没驱动，2＝没插，3＝查询失败 |
-| `--install-driver` | 安装内置驱动（需要管理员） | 0＝成功（含“需要重启”“插上网卡会自动装”），1＝失败或没有管理员权限 |
-| `--internet on\|off` | 允许 / 禁止连接的设备访问互联网。软件在运行时会通知它立即切换 | 0＝已设置，1＝软件在运行但通知不到它，2＝参数错误 |
-| `--diag [文件路径]` | 输出诊断信息（不含密码），同时保存到文件（默认是 exe 旁边的 `diag-日期-时间.txt`），然后退出 | 0 |
-| `--uninstall` | 撤销本软件对系统的改动（同“还原 / 卸载”按钮，需要管理员） | 0 / 1 |
-| `--autostart` | 开机自启动任务使用：直接缩在托盘里启动 | — |
-| `--lang 语言代码` | 这一次用指定的语言运行（`en` / `zh-CN` / `ja` / `ko`），不改 `config.json`。可以和其它参数一起用，例如 `--driver-status --lang en` | — |
-| `--ui-screenshot [文件夹]` | 用演示数据把界面渲染成 PNG（不读 `config.json`，不会出现你的密码），默认存到 exe 旁边的 `ui-screenshots\`。文件名是 `状态-语言-主题.png`：状态有 `start`（开始使用页，网卡无驱动）、`stopped`、`running`（2 台设备、满血）、`lanonly`（仅局域网）、`pin`（钉住信道）、`error`（错误通知），另外还有 `compact`（最小窗口）和 `traymenu`（托盘菜单）。4 种语言 × 2 种主题共 64 张 | 0＝全部成功，1＝有失败 |
+- **Headset gets 169.254.x.x**: click **Repair network** (it handles the Hyper-V *Default Switch*); a third-party firewall such as Kaspersky must trust the hotspot network.
+- **Hotspot on the wrong adapter**: the app detects it by MAC address and moves it to the DWA-F18 without touching the adapter that keeps the PC online.
+- **Not full speed (2.4 GHz or 20 MHz)**: set **Band** to 5 GHz, run **One-click optimize**, replug the dongle and start again.
+- **Driver gone after uninstalling Meta software**: click **Install driver**.
+- **Another Meta bridge nearby on the same channel**: use **Pin to network** with a saved Wi-Fi in the other 80 MHz block.
+- **Picking a channel**: Windows chooses it, always within 36–48 or 149–161; **Pin to network** is the only way to steer it.
 
-- 本软件是窗口程序，命令提示符默认不会等它结束。请用 `start /wait`，并在**以管理员身份运行**的命令提示符里执行，例如：
+## Privacy
 
-  ```
-  start /wait VRAirBridgeHotspot.exe --driver-status
-  echo %errorlevel%
-  ```
+Everything runs locally. There is no telemetry, and the app itself never connects to the internet.
 
-  输出会显示在这个命令提示符里。如果在普通命令提示符里运行，会先弹出管理员确认，输出可能看不到；这时用 `--diag`，再打开它保存的文件。
+`config.json` stores the hotspot password in plain text, so share only the exe. Diagnostics leave out passwords but list nearby Wi-Fi names.
 
----
+## Build
 
-## 卸载 / 还原
+Requires the .NET 9 SDK.
 
-1. 打开软件，点“**还原 / 卸载**”。也可以以管理员身份运行 `VRAirBridgeHotspot.exe --uninstall`。它会：
-   - 删除本软件创建的 WinNAT `VRAirBridgeNat`，关闭本软件打开的 IPv4 转发；
-   - 删除“钉住到网络”复制给 D-Link 的 Wi-Fi 配置，恢复 D-Link 的跃点数（如果用过这个功能）；
-   - 重新启用本软件禁用过的网卡（例如 vEthernet (Default Switch)）；
-   - 把 Meta 的 OVRService 改回“自动”启动（如果之前被本软件改过）；
-   - 删除防火墙规则 `VRAirBridge-DHCP-In`、`VRAirBridge-App-In`；
-   - 删除开机自启动任务（任务计划程序里的 `VRAirBridgeHotspot`）。
-2. 在托盘图标上右键 →“退出并关闭热点”。
-3. 删除整个文件夹（exe、`config.json`、`dhcp-leases.json`、`logs\`）。
+```
+dotnet publish src/VRAirBridge.App/VRAirBridge.App.csproj -c Release
+```
 
-“一键优化”做的下面这些属于无害的性能设置，还原时**不会**改回。想恢复可以手动改：
+## License
 
-- 关闭“无设备连接时自动关闭热点”：设置 → 网络和 Internet → 移动热点 →“节能”开关。
-- D-Link 驱动的省电选项和无线模式：设备管理器 → 网络适配器 → D-Link DWA-F18 → 属性 → 高级 / 电源管理。
-- 电源方案里的“USB 选择性暂停”和“无线适配器设置”：控制面板 → 电源选项 → 更改计划设置 → 更改高级电源设置。
+MIT, see [LICENSE](LICENSE). The bundled Realtek/D-Link driver (1.27.831.2023, WHQL-signed) is redistributed unmodified; it is © Realtek and not covered by the MIT license.
 
-Windows“移动热点”里的热点名和密码会保留，可以在 设置 → 网络和 Internet → 移动热点 里修改或关闭。
-
-用“安装驱动”装上的 D-Link 驱动也会保留（以后插上网卡直接能用）。
-
----
-
-## 测试记录
-
-- 2026-10-13：界面重做（WPF）：新布局（顶栏 / “开始使用”页 / 主界面卡片 / 右侧栏 / 状态栏）、4 种界面语言、深色 / 浅色主题、软件内对话框和通知、`--lang`、`--ui-screenshot`。
-  - 206 个单元测试全部通过，包括：4 种语言的字符串表键一致、占位符一致；Core 和界面代码 / XAML 里没有写死的中日韩文字；界面用到的每个键在 4 种语言里都存在。
-  - 用 `--ui-screenshot` 渲染了 64 张截图逐张检查（4 种语言 × 深色 / 浅色，含最小窗口和托盘菜单）。
-  - 用非管理员身份运行 `--driver-status`、`--diag`（`--lang en` 和 `--lang ja`），输出正确。
-  - 尚未实测：以管理员身份真正开热点、主题切换动画在真实屏幕上的效果、真实任务栏上的托盘菜单。
-- 2026-10-13：加入内置驱动安装（“安装驱动”按钮 / 插上时提示 / `--install-driver`、`--driver-status`）、“Meta 残留”只读诊断、“信道”卡片和实验功能“钉住到网络”、“允许连接的设备访问互联网”开关（`--internet on|off`）。
-  - 136 个单元测试全部通过：pnputil 退出码、驱动包校验、DHCP 仅局域网不下发 DNS、NAT 切换、信道统计等。
-  - 在一台**插着 D-Link 但没有驱动**的电脑上，用非管理员身份运行 `--driver-status`、`--diag`：正确显示“已插上但没有驱动”、内置驱动包校验通过，并列出 Meta 残留文件夹和 `oculus_vigembus.inf`。
-  - 尚未实测（需要管理员权限 / 装好驱动的网卡）：真正安装驱动、开热点、钉住信道、仅局域网下真实设备的表现。
+Design language from [VRChat DLSS5 Cam](https://github.com/AlanBacker/VRChat-DLSS5-Cam); icons by [Lucide](https://lucide.dev) (ISC).
