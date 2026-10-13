@@ -1,0 +1,51 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <UseWPF>true</UseWPF>
+    <AssemblyName>VRAirBridgeHotspot</AssemblyName>
+    <RootNamespace>VRAirBridge.App</RootNamespace>
+    <!-- Code-only application class; Program.Main is the entry point. -->
+    <StartupObject>VRAirBridge.App.Program</StartupObject>
+    <EnableDefaultApplicationDefinition>false</EnableDefaultApplicationDefinition>
+    <ApplicationIcon>app.ico</ApplicationIcon>
+    <AssemblyTitle>VR Air Bridge Hotspot</AssemblyTitle>
+    <Description>Hotspot tool for the D-Link DWA-F18 (VR Air Bridge) without the Meta software</Description>
+    <!-- Release: requireAdministrator (UAC prompt on double-click). -->
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- Publish: self-contained single file, no .NET install needed on the target PC. -->
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>true</SelfContained>
+    <PublishSingleFile>true</PublishSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+    <PublishTrimmed>false</PublishTrimmed>
+    <PublishReadyToRun>false</PublishReadyToRun>
+    <DebugType>embedded</DebugType>
+    <InvariantGlobalization>false</InvariantGlobalization>
+  </PropertyGroup>
+
+  <!-- Debug / test build (dotnet publish -p:TestNoElevate=true): asInvoker, no UAC prompt, runs with normal rights. -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Debug' Or '$(TestNoElevate)' == 'true'">
+    <ApplicationManifest>app.noelevate.manifest</ApplicationManifest>
+  </PropertyGroup>
+  <!-- The manifest is not part of the incremental-compile hash; a define is, so switching between the
+       release and test publish always recompiles and the right manifest ends up in the exe. -->
+  <PropertyGroup Condition="'$(TestNoElevate)' == 'true'">
+    <DefineConstants>$(DefineConstants);TEST_NO_ELEVATE</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\VRAirBridge.Core\VRAirBridge.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="app.ico" LogicalName="VRAirBridge.App.app.ico" />
+    <Resource Include="app.ico" />
+  </ItemGroup>
+
+  <!-- Bundled D-Link/Realtek driver 1.27.831.2023 (10 files + driver-manifest.json with SHA-256), embedded into the single-file exe. -->
+  <ItemGroup>
+    <None Remove="driver\**" />
+    <EmbeddedResource Include="driver\*" LogicalName="VRAirBridge.App.driver.%(Filename)%(Extension)" />
+  </ItemGroup>
+</Project>

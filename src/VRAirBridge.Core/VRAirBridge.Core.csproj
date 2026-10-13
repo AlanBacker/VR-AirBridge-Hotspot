@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>VRAirBridge.Core</RootNamespace>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="System.Management" Version="9.0.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="VRAirBridge.Tests" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- 界面语言字符串表：en / zh-CN / ja / ko -->
+    <EmbeddedResource Include="Localization/Strings/*.json" LogicalName="VRAirBridge.Core.Strings.%(Filename).json" />
+  </ItemGroup>
+</Project>

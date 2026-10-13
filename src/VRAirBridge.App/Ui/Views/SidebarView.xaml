@@ -1,0 +1,280 @@
+<UserControl x:Class="VRAirBridge.App.Ui.Views.SidebarView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:c="clr-namespace:VRAirBridge.App.Ui.Controls"
+             xmlns:l="clr-namespace:VRAirBridge.App.Ui"
+             Focusable="False">
+    <UserControl.Resources>
+        <Style x:Key="FirstLabel" TargetType="TextBlock" BasedOn="{StaticResource T.Label}">
+            <Setter Property="Margin" Value="0,0,0,4" />
+        </Style>
+        <Style x:Key="Switch" TargetType="CheckBox" BasedOn="{StaticResource {x:Type CheckBox}}">
+            <Setter Property="Margin" Value="0,0,0,10" />
+        </Style>
+        <Style x:Key="RowBtn" TargetType="Button" BasedOn="{StaticResource Btn.Row}">
+            <Setter Property="Margin" Value="0,0,0,6" />
+            <Setter Property="c:Btn.IconSize" Value="15" />
+        </Style>
+        <Style x:Key="SmallBtn" TargetType="Button" BasedOn="{StaticResource Btn.Ghost}">
+            <Setter Property="MinHeight" Value="26" />
+            <Setter Property="Padding" Value="9,2" />
+            <Setter Property="c:Btn.IconSize" Value="14" />
+        </Style>
+    </UserControl.Resources>
+
+    <DockPanel>
+        <!-- ============================================================ search + advanced -->
+        <StackPanel DockPanel.Dock="Top" Margin="12,12,12,4">
+            <Grid>
+                <TextBox x:Name="SearchBox" Padding="28,0,30,0" Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                         AutomationProperties.Name="{l:T ui.side.search}" />
+                <c:IconView Margin="9,0,0,0" HorizontalAlignment="Left" Size="14" IsHitTestVisible="False"
+                            Data="{StaticResource I.search}" Foreground="{DynamicResource B.TextDim}" />
+                <TextBlock Margin="29,0,30,0" VerticalAlignment="Center" IsHitTestVisible="False" Text="{l:T ui.side.search}"
+                           Foreground="{DynamicResource B.Muted}" TextTrimming="CharacterEllipsis"
+                           Visibility="{Binding SearchText, Converter={StaticResource EmptyVisInv}}" />
+                <Button Style="{StaticResource Btn.Icon}" Width="24" Height="24" Margin="0,0,2,0" HorizontalAlignment="Right"
+                        c:Btn.Icon="{StaticResource I.x}" c:Btn.IconSize="13"
+                        ToolTip="{l:T ui.side.clearSearch}" AutomationProperties.Name="{l:T ui.side.clearSearch}"
+                        Command="{Binding ClearSearchCommand}"
+                        Visibility="{Binding HasSearch, Converter={StaticResource BoolVis}}" />
+            </Grid>
+            <!-- text + help icon: the icon stays next to the text and never wraps onto a line of its own;
+                 the automation name is the label alone (no trailing inline-container spaces) -->
+            <CheckBox Margin="2,10,2,2" IsChecked="{Binding IsAdvanced}" ToolTip="{l:T ui.side.advancedTip}"
+                      AutomationProperties.Name="{l:T ui.side.advanced}">
+                <DockPanel HorizontalAlignment="Left">
+                    <c:IconView DockPanel.Dock="Right" Style="{StaticResource HelpIcon}" VerticalAlignment="Center" ToolTip="{l:T ui.side.advancedTip}" />
+                    <TextBlock Text="{l:T ui.side.advanced}" TextWrapping="Wrap" FontWeight="SemiBold" />
+                </DockPanel>
+            </CheckBox>
+        </StackPanel>
+
+        <!-- ============================================================ sections -->
+        <ScrollViewer x:Name="Scroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
+            <StackPanel Margin="12,6,12,12">
+                <TextBlock Margin="2,4,2,12" Text="{Binding NoMatchText, Converter={StaticResource Disp}}" Style="{StaticResource T.Dim}"
+                           Visibility="{Binding NoMatch, Converter={StaticResource BoolVis}}" />
+
+                <!-- hotspot -->
+                <c:SectionCard x:Name="HotspotCard" Header="{l:T ui.sec.hotspot}" Icon="{StaticResource I.wifi}"
+                               IsExpanded="{Binding SecHotspot.IsExpanded}"
+                               Visibility="{Binding SecHotspot.IsVisible, Converter={StaticResource BoolVis}}">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource FirstLabel}" Text="{l:T ui.hs.ssid}" />
+                        <TextBox x:Name="SsidBox" MaxLength="32" Text="{Binding EditSsid, UpdateSourceTrigger=PropertyChanged}"
+                                 AutomationProperties.Name="{l:T ui.hs.ssid}" />
+
+                        <TextBlock Style="{StaticResource T.Label}" Text="{l:T ui.hs.password}" />
+                        <DockPanel>
+                            <Button DockPanel.Dock="Right" Margin="4,0,0,0" Style="{StaticResource Btn.Icon}"
+                                    c:Btn.Icon="{StaticResource I.dices}" c:Btn.IconSize="15"
+                                    ToolTip="{l:T ui.hs.random}" AutomationProperties.Name="{l:T ui.hs.random}"
+                                    Command="{Binding RandomPasswordCommand}" />
+                            <Button DockPanel.Dock="Right" Margin="4,0,0,0" Style="{StaticResource Btn.Icon}"
+                                    c:Btn.Icon="{Binding PasswordToggleIcon, Converter={StaticResource IconKey}}" c:Btn.IconSize="15"
+                                    ToolTip="{Binding PasswordToggleTip}" AutomationProperties.Name="{Binding PasswordToggleTip}"
+                                    Command="{Binding TogglePasswordCommand}" />
+                            <c:PasswordField Password="{Binding EditPassword}" IsRevealed="{Binding PasswordRevealed}"
+                                             AutomationProperties.Name="{l:T ui.hs.password}" />
+                        </DockPanel>
+
+                        <DockPanel Margin="0,10,0,4">
+                            <c:IconView DockPanel.Dock="Right" Style="{StaticResource HelpIcon}" ToolTip="{l:T ui.hs.bandHelp}" />
+                            <TextBlock Text="{l:T ui.hs.band}" Foreground="{DynamicResource B.TextDim}" TextWrapping="Wrap" />
+                        </DockPanel>
+                        <ComboBox ItemsSource="{Binding Bands}" SelectedItem="{Binding SelectedBand}" DisplayMemberPath="Text"
+                                  AutomationProperties.Name="{l:T ui.hs.band}" />
+
+                        <TextBlock Style="{StaticResource T.Label}" Text="{l:T ui.hs.auth}" />
+                        <ComboBox ItemsSource="{Binding Auths}" SelectedItem="{Binding SelectedAuth}" DisplayMemberPath="Text"
+                                  AutomationProperties.Name="{l:T ui.hs.auth}" />
+
+                        <TextBlock Margin="0,8,0,0" Text="{Binding WindowsCurrentText, Converter={StaticResource Disp}}" Style="{StaticResource T.Dim}" FontSize="11"
+                                   Visibility="{Binding WindowsCurrentText, Converter={StaticResource EmptyVis}}" />
+
+                        <Button Margin="0,12,0,0" HorizontalAlignment="Stretch" Style="{StaticResource Btn.Accent}"
+                                Content="{l:T ui.hs.apply}" c:Btn.Icon="{StaticResource I.save}" c:Btn.IconSize="14"
+                                ContentTemplate="{StaticResource WrapText}"
+                                ToolTip="{l:T ui.hs.applyTip}" IsEnabled="{Binding CanOps}" Command="{Binding ApplyCommand}" />
+                    </StackPanel>
+                </c:SectionCard>
+
+                <!-- network -->
+                <c:SectionCard Header="{l:T ui.sec.network}" Icon="{StaticResource I.globe}"
+                               IsExpanded="{Binding SecNetwork.IsExpanded}"
+                               Visibility="{Binding SecNetwork.IsVisible, Converter={StaticResource BoolVis}}">
+                    <StackPanel>
+                        <ItemsControl ItemsSource="{Binding NetRows}" ItemTemplate="{StaticResource KvRow}" Focusable="False" />
+                        <Border Style="{StaticResource Divider}" />
+                        <CheckBox Content="{l:T internet.checkBox}" IsChecked="{Binding InternetAllowed}" IsEnabled="{Binding CanOps}"
+                                  ToolTip="{l:T internet.hint}" />
+                        <TextBlock Margin="0,6,0,0" Text="{l:T internet.hint}" Style="{StaticResource T.Dim}" FontSize="11" />
+
+                        <StackPanel Visibility="{Binding IsAdvanced, Converter={StaticResource BoolVis}}">
+                            <Border Style="{StaticResource Divider}" />
+                            <TextBlock Margin="0,0,0,4" Text="{l:T ui.net.pool}" Style="{StaticResource T.Caption}" />
+                            <ItemsControl ItemsSource="{Binding PoolRows}" ItemTemplate="{StaticResource KvRow}" Focusable="False" />
+                            <TextBlock Margin="0,6,0,0" Text="{l:T ui.net.poolHint}" Style="{StaticResource T.Dim}" FontSize="11" />
+                        </StackPanel>
+                    </StackPanel>
+                </c:SectionCard>
+
+                <!-- driver -->
+                <c:SectionCard Header="{l:T ui.sec.driver}" Icon="{StaticResource I.cpu}"
+                               IsExpanded="{Binding SecDriver.IsExpanded}"
+                               Visibility="{Binding SecDriver.IsVisible, Converter={StaticResource BoolVis}}">
+                    <StackPanel>
+                        <ItemsControl ItemsSource="{Binding DriverRows}" ItemTemplate="{StaticResource KvRow}" Focusable="False" />
+                        <Border Margin="0,8,0,0" Style="{StaticResource Callout}" Background="{DynamicResource B.BadBg}"
+                                BorderBrush="{DynamicResource B.BadBorder}"
+                                Visibility="{Binding DriverWarning, Converter={StaticResource EmptyVis}}">
+                            <TextBlock Text="{Binding DriverWarning, Converter={StaticResource Disp}}" TextWrapping="Wrap" />
+                        </Border>
+                        <Button Margin="0,10,0,0" HorizontalAlignment="Stretch" Content="{Binding DriverButtonText}"
+                                c:Btn.Icon="{StaticResource I.download}" c:Btn.IconSize="14" ContentTemplate="{StaticResource WrapText}"
+                                ToolTip="{Binding DriverButtonTip}" IsEnabled="{Binding CanOps}" Command="{Binding InstallDriverCommand}">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource Btn.Ghost}">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding DriverWarning, Converter={StaticResource EmptyVis}}" Value="Visible">
+                                            <Setter Property="Background" Value="{DynamicResource B.Accent}" />
+                                            <Setter Property="Foreground" Value="{DynamicResource B.AccentText}" />
+                                            <Setter Property="BorderThickness" Value="0" />
+                                            <Setter Property="FontWeight" Value="SemiBold" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+                    </StackPanel>
+                </c:SectionCard>
+
+                <!-- options -->
+                <c:SectionCard Header="{l:T ui.sec.options}" Icon="{StaticResource I.sliders-horizontal}"
+                               IsExpanded="{Binding SecOptions.IsExpanded}"
+                               Visibility="{Binding SecOptions.IsVisible, Converter={StaticResource BoolVis}}">
+                    <StackPanel>
+                        <!-- text + help icon: the icon stays next to the text and never wraps onto a line of its own;
+                             the automation name is the label alone (no trailing inline-container spaces) -->
+                        <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding OptAutoStart}" ToolTip="{l:T ui.opt.autostartTip}"
+                                  AutomationProperties.Name="{l:T ui.opt.autostart}">
+                            <DockPanel HorizontalAlignment="Left">
+                                <c:IconView DockPanel.Dock="Right" Style="{StaticResource HelpIcon}" VerticalAlignment="Center" ToolTip="{l:T ui.opt.autostartTip}" />
+                                <TextBlock Text="{l:T ui.opt.autostart}" TextWrapping="Wrap" />
+                            </DockPanel>
+                        </CheckBox>
+                        <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding OptStartOnLaunch}" Content="{l:T ui.opt.startOnLaunch}" />
+                        <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding OptTray}" ToolTip="{l:T ui.opt.trayTip}"
+                                  AutomationProperties.Name="{l:T ui.opt.tray}">
+                            <DockPanel HorizontalAlignment="Left">
+                                <c:IconView DockPanel.Dock="Right" Style="{StaticResource HelpIcon}" VerticalAlignment="Center" ToolTip="{l:T ui.opt.trayTip}" />
+                                <TextBlock Text="{l:T ui.opt.tray}" TextWrapping="Wrap" />
+                            </DockPanel>
+                        </CheckBox>
+                        <CheckBox Style="{StaticResource Switch}" Margin="0" IsChecked="{Binding OptKeep}" ToolTip="{l:T ui.opt.keepTip}"
+                                  AutomationProperties.Name="{l:T ui.opt.keep}">
+                            <DockPanel HorizontalAlignment="Left">
+                                <c:IconView DockPanel.Dock="Right" Style="{StaticResource HelpIcon}" VerticalAlignment="Center" ToolTip="{l:T ui.opt.keepTip}" />
+                                <TextBlock Text="{l:T ui.opt.keep}" TextWrapping="Wrap" />
+                            </DockPanel>
+                        </CheckBox>
+
+                        <Border Style="{StaticResource Divider}" />
+                        <TextBlock Style="{StaticResource FirstLabel}" Text="{l:T ui.opt.theme}" />
+                        <c:Segmented ItemsSource="{Binding Themes}" SelectedItem="{Binding SelectedTheme}" DisplayMemberPath="Text"
+                                     AutomationProperties.Name="{l:T ui.opt.theme}" />
+                        <TextBlock Style="{StaticResource T.Label}" Text="{l:T ui.opt.language}" />
+                        <ComboBox ItemsSource="{Binding Languages}" SelectedItem="{Binding SelectedLanguage}" DisplayMemberPath="Text"
+                                  c:Btn.Icon="{StaticResource I.languages}" AutomationProperties.Name="{l:T ui.opt.language}" />
+                        <Button Margin="0,12,0,0" HorizontalAlignment="Left" Style="{StaticResource Btn.Link}"
+                                Content="{l:T ui.start.reopen}" ToolTip="{l:T ui.start.reopenTip}" Command="{Binding ShowStartCommand}" />
+                    </StackPanel>
+                </c:SectionCard>
+
+                <!-- maintenance -->
+                <c:SectionCard Header="{l:T ui.sec.maint}" Icon="{StaticResource I.wrench}"
+                               IsExpanded="{Binding SecMaint.IsExpanded}"
+                               Visibility="{Binding SecMaint.IsVisible, Converter={StaticResource BoolVis}}">
+                    <StackPanel>
+                        <Button Style="{StaticResource RowBtn}" Content="{l:T ui.maint.optimize}" c:Btn.Icon="{StaticResource I.wand-sparkles}"
+                                ToolTip="{l:T ui.maint.optimizeTip}" IsEnabled="{Binding CanOps}" Command="{Binding OptimizeCommand}" />
+                        <Button Style="{StaticResource RowBtn}" Content="{l:T ui.maint.repair}" c:Btn.Icon="{StaticResource I.life-buoy}"
+                                ToolTip="{l:T ui.maint.repairTip}" IsEnabled="{Binding CanOps}" Command="{Binding RepairCommand}" />
+                        <Button Style="{StaticResource RowBtn}" Content="{l:T ui.maint.beacon}" c:Btn.Icon="{StaticResource I.radio}"
+                                ToolTip="{l:T ui.maint.beaconTip}" IsEnabled="{Binding CanBeacon}" Command="{Binding BeaconCommand}" />
+                        <Button Style="{StaticResource RowBtn}" Content="{l:T ui.maint.logs}" c:Btn.Icon="{StaticResource I.folder-open}"
+                                ToolTip="{l:T ui.maint.logsTip}" Command="{Binding OpenLogsCommand}" />
+                        <Button Style="{StaticResource RowBtn}" Content="{l:T ui.maint.diag}" c:Btn.Icon="{StaticResource I.copy}"
+                                ToolTip="{l:T ui.maint.diagTip}" Command="{Binding CopyDiagCommand}" />
+                        <Button Style="{StaticResource RowBtn}" Margin="0" Content="{l:T ui.maint.revert}" c:Btn.Icon="{StaticResource I.undo-2}"
+                                ToolTip="{l:T ui.maint.revertTip}" IsEnabled="{Binding CanOps}" Command="{Binding RevertCommand}" />
+
+                        <StackPanel Visibility="{Binding IsAdvanced, Converter={StaticResource BoolVis}}">
+                            <Border Style="{StaticResource Divider}" />
+                            <DockPanel>
+                                <Button DockPanel.Dock="Right" Style="{StaticResource SmallBtn}" Margin="8,0,0,0" VerticalAlignment="Center"
+                                        Content="{Binding MetaButtonText}" c:Btn.Icon="{StaticResource I.search}"
+                                        IsEnabled="{Binding MetaChecking, Converter={StaticResource Not}}" Command="{Binding MetaCheckCommand}" />
+                                <TextBlock Text="{l:T meta.section}" FontWeight="SemiBold" TextWrapping="Wrap" VerticalAlignment="Center" />
+                            </DockPanel>
+                            <TextBlock Margin="0,6,0,0" Text="{l:T ui.maint.metaIntro}" Style="{StaticResource T.Dim}" FontSize="11"
+                                       Visibility="{Binding MetaText, Converter={StaticResource EmptyVisInv}}" />
+                            <TextBox Margin="0,8,0,0" Style="{StaticResource Box.ReadOnly}" MaxHeight="220" FontFamily="{DynamicResource F.Mono}"
+                                     FontSize="11" Text="{Binding MetaText, Mode=OneWay}" AutomationProperties.Name="{l:T meta.section}"
+                                     Visibility="{Binding MetaText, Converter={StaticResource EmptyVis}}" />
+                        </StackPanel>
+                    </StackPanel>
+                </c:SectionCard>
+
+                <!-- about -->
+                <c:SectionCard Margin="0" Header="{l:T ui.sec.about}" Icon="{StaticResource I.info}"
+                               IsExpanded="{Binding SecAbout.IsExpanded}"
+                               Visibility="{Binding SecAbout.IsVisible, Converter={StaticResource BoolVis}}">
+                    <StackPanel>
+                        <Grid Margin="0,3">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="42*" />
+                                <ColumnDefinition Width="58*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Margin="0,0,10,0" Text="{l:T ui.about.version}" Foreground="{DynamicResource B.TextDim}" TextWrapping="Wrap" />
+                            <TextBlock Grid.Column="1" Text="{Binding VersionText, Converter={StaticResource Disp}}" TextWrapping="Wrap" />
+                        </Grid>
+                        <Grid Margin="0,3">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="42*" />
+                                <ColumnDefinition Width="58*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Margin="0,0,10,0" Text="{l:T ui.drv.bundled}" Foreground="{DynamicResource B.TextDim}" TextWrapping="Wrap" />
+                            <TextBlock Grid.Column="1" Text="{Binding BundledDriverText, Converter={StaticResource Disp}}" TextWrapping="Wrap" />
+                        </Grid>
+                        <Grid Margin="0,3">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="42*" />
+                                <ColumnDefinition Width="58*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Margin="0,0,10,0" Text="{l:T ui.about.repo}" Foreground="{DynamicResource B.TextDim}" TextWrapping="Wrap" />
+                            <Button Grid.Column="1" HorizontalAlignment="Left" Style="{StaticResource Btn.Link}" Content="{Binding RepoText}"
+                                    ToolTip="{l:T ui.header.docsTip}" Command="{Binding OpenRepoCommand}" />
+                        </Grid>
+                        <Grid Margin="0,3">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="42*" />
+                                <ColumnDefinition Width="58*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Margin="0,0,10,0" Text="{l:T ui.about.dataDir}" Foreground="{DynamicResource B.TextDim}" TextWrapping="Wrap" />
+                            <StackPanel Grid.Column="1">
+                                <TextBlock Text="{Binding DataDirectoryText, Converter={StaticResource Disp}}" TextWrapping="Wrap" />
+                                <Button Margin="0,6,0,0" HorizontalAlignment="Left" Style="{StaticResource SmallBtn}"
+                                        Content="{l:T ui.about.open}" c:Btn.Icon="{StaticResource I.folder-open}"
+                                        Command="{Binding OpenDataDirCommand}" />
+                            </StackPanel>
+                        </Grid>
+                        <TextBlock Margin="0,8,0,4" Text="{l:T ui.about.license}" Style="{StaticResource T.Caption}" />
+                        <TextBlock Text="{l:T ui.about.licenseText}" Style="{StaticResource T.Dim}" FontSize="11" />
+                    </StackPanel>
+                </c:SectionCard>
+            </StackPanel>
+        </ScrollViewer>
+    </DockPanel>
+</UserControl>

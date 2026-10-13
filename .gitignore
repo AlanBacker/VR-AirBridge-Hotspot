@@ -1,0 +1,38 @@
+# Build output
+bin/
+obj/
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+TestResults/
+*.trx
+
+# Local publish and test folders (CI publishes into dist/).
+publish/
+testexe/
+phase1-build/
+dist/
+*.zip
+
+# Local QA reports.
+TEST-REPORT-*.md
+
+# Data the application writes next to the exe (or to %ProgramData%\VRAirBridgeHotspot).
+# config.json holds the hotspot password in plain text: never commit it.
+config.json
+config.json.bad-*
+dhcp-leases.json
+logs/
+*.log
+diag-*.txt
+
+# Screenshots rendered by --ui-screenshot / --screenshot.
+ui-screenshots/
+screenshots/
+
+# src/VRAirBridge.App/driver/ is the bundled Realtek/D-Link driver (embedded into the exe, hashed in
+# driver-manifest.json and checked by the unit tests). It must stay tracked: keep these negations last.
+!src/VRAirBridge.App/driver/
+!src/VRAirBridge.App/driver/**

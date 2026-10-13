@@ -1,0 +1,64 @@
+﻿<UserControl x:Class="VRAirBridge.App.Ui.Views.TrayMenu"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:c="clr-namespace:VRAirBridge.App.Ui.Controls"
+             xmlns:l="clr-namespace:VRAirBridge.App.Ui"
+             Focusable="False">
+    <!-- Tray menu content (DataContext: MainViewModel). Hosted by TrayMenuWindow and rendered by the screenshot tool. -->
+    <UserControl.Resources>
+        <Style x:Key="Item" TargetType="Button" BasedOn="{StaticResource Btn.Plain}">
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Left" />
+            <Setter Property="Foreground" Value="{DynamicResource B.Text}" />
+            <Setter Property="Padding" Value="10,6" />
+            <Setter Property="MinHeight" Value="32" />
+            <Setter Property="c:Btn.Radius" Value="6" />
+            <Setter Property="c:Btn.IconSize" Value="15" />
+            <Setter Property="ContentTemplate" Value="{StaticResource WrapText}" />
+        </Style>
+        <Style x:Key="Sep" TargetType="Border">
+            <Setter Property="Height" Value="1" />
+            <Setter Property="Margin" Value="6,5" />
+            <Setter Property="Background" Value="{DynamicResource B.Divider}" />
+        </Style>
+    </UserControl.Resources>
+
+    <Grid Margin="12">
+        <Border CornerRadius="10" Background="{DynamicResource B.PopupBg}" Effect="{DynamicResource E.Popup}" />
+        <Border CornerRadius="10" Background="{DynamicResource B.PopupBg}" BorderBrush="{DynamicResource B.CardBorder}"
+                BorderThickness="1" Padding="6">
+            <StackPanel Width="300">
+                <DockPanel Margin="8,6,8,4">
+                    <Border DockPanel.Dock="Left" Width="22" Height="22" CornerRadius="6" Margin="0,0,9,0" VerticalAlignment="Top"
+                            Background="{DynamicResource B.Accent}">
+                        <c:IconView Size="13" Data="{StaticResource I.wifi}" Foreground="{DynamicResource B.AccentText}" StrokeWidth="2.4" />
+                    </Border>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="{l:T app.name}" TextWrapping="Wrap" FontWeight="SemiBold" />
+                        <TextBlock Text="{Binding Headline, Converter={StaticResource Disp}}" TextWrapping="Wrap" FontSize="11.5" Margin="0,1,0,0"
+                                   Foreground="{DynamicResource B.TextDim}" />
+                    </StackPanel>
+                </DockPanel>
+                <Border Style="{StaticResource Sep}" />
+
+                <Button Style="{StaticResource Item}" Content="{l:T ui.header.start}" c:Btn.Icon="{StaticResource I.play}"
+                        IsEnabled="{Binding TrayCanStart}" Command="{Binding TrayStartCommand}" />
+                <Button Style="{StaticResource Item}" Content="{l:T ui.header.stop}" c:Btn.Icon="{StaticResource I.square}"
+                        IsEnabled="{Binding TrayCanStop}" Command="{Binding TrayStopCommand}" />
+                <Button Style="{StaticResource Item}" Content="{l:T tray.show}" c:Btn.Icon="{StaticResource I.external-link}"
+                        FontWeight="SemiBold" Command="{Binding ShowWindowCommand}" />
+                <Border Style="{StaticResource Sep}" />
+
+                <Border Padding="10,6,8,6" Background="Transparent" ToolTip="{l:T internet.hint}">
+                    <CheckBox x:Name="InternetSwitch" Content="{l:T internet.trayItem}" IsChecked="{Binding InternetAllowed}" />
+                </Border>
+                <Border Style="{StaticResource Sep}" />
+
+                <Button Style="{StaticResource Item}" Content="{l:T tray.exitKeep}" c:Btn.Icon="{StaticResource I.power}"
+                        Command="{Binding ExitKeepCommand}" />
+                <Button Style="{StaticResource Item}" Content="{l:T tray.exitStop}" c:Btn.Icon="{StaticResource I.power}"
+                        Foreground="{DynamicResource B.Bad}" Command="{Binding ExitStopCommand}" />
+            </StackPanel>
+        </Border>
+    </Grid>
+</UserControl>

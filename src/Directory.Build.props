@@ -1,0 +1,17 @@
+<Project>
+  <PropertyGroup>
+    <TargetFramework>net9.0-windows10.0.26100.0</TargetFramework>
+    <!-- 运行时最低 Windows 10 2004 (19041)；更新的 WinRT API（WPA3 等）在运行时探测 -->
+    <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <Version>1.0.0</Version>
+    <Company>VR Air Bridge Hotspot</Company>
+    <Product>VR Air Bridge Hotspot</Product>
+    <Copyright>Free to use</Copyright>
+    <SatelliteResourceLanguages>en;zh-Hans</SatelliteResourceLanguages>
+    <NoWarn>$(NoWarn);CA1416</NoWarn>
+    <DebugType>embedded</DebugType>
+  </PropertyGroup>
+</Project>

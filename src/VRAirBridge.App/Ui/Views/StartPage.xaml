@@ -1,0 +1,123 @@
+﻿<UserControl x:Class="VRAirBridge.App.Ui.Views.StartPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:c="clr-namespace:VRAirBridge.App.Ui.Controls"
+             xmlns:l="clr-namespace:VRAirBridge.App.Ui"
+             xmlns:vm="clr-namespace:VRAirBridge.App.Ui.ViewModels"
+             Focusable="False">
+    <UserControl.Resources>
+        <!-- Start-page tile: icon, title, body, live status, action button. Accent border on the current step. -->
+        <DataTemplate x:Key="TileTpl" DataType="{x:Type vm:TileVm}">
+            <ContentControl x:Name="Tile" Style="{StaticResource Card}" Padding="16,14,16,14">
+                <DockPanel LastChildFill="True">
+                    <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+                        <Border x:Name="IcoBg" DockPanel.Dock="Left" Width="34" Height="34" CornerRadius="9" Margin="0,0,12,0"
+                                Background="{DynamicResource B.Control}" VerticalAlignment="Top">
+                            <c:IconView x:Name="Ico" Size="18" Data="{Binding Icon, Converter={StaticResource IconKey}}"
+                                        Foreground="{DynamicResource B.IconAccent}" />
+                        </Border>
+                        <TextBlock Text="{Binding Title, Converter={StaticResource Disp}}" Style="{StaticResource T.Tile}" FontSize="13.5" VerticalAlignment="Center" />
+                    </DockPanel>
+
+                    <StackPanel DockPanel.Dock="Bottom" Margin="0,12,0,0">
+                        <Border Style="{StaticResource Divider}" Margin="0,0,0,10" />
+                        <DockPanel>
+                            <c:StatusDot DockPanel.Dock="Left" Tone="{Binding StatusTone}" Radius="4" Margin="0,5,8,0" VerticalAlignment="Top" />
+                            <TextBlock Text="{Binding Status, Converter={StaticResource Disp}}" TextWrapping="Wrap" FontWeight="SemiBold"
+                                       Foreground="{Binding StatusTone, Converter={StaticResource ToneBrush}}" />
+                        </DockPanel>
+                        <TextBlock Margin="16,4,0,0" Text="{Binding Extra, Converter={StaticResource Disp}}" Style="{StaticResource T.Dim}"
+                                   Visibility="{Binding Extra, Converter={StaticResource EmptyVis}}" />
+                        <!-- secret line (hotspot password): masked until the eye button reveals it; the automation
+                             name is the fixed label so screen readers / UIA never read the password itself -->
+                        <DockPanel Margin="16,2,0,0" Visibility="{Binding HasSecret, Converter={StaticResource BoolVis}}">
+                            <Button DockPanel.Dock="Right" Margin="6,0,0,0" Width="24" Height="24" VerticalAlignment="Top"
+                                    Style="{StaticResource Btn.Icon}"
+                                    c:Btn.Icon="{Binding SecretToggleIcon, Converter={StaticResource IconKey}}" c:Btn.IconSize="14"
+                                    ToolTip="{Binding SecretToggleTip}" AutomationProperties.Name="{Binding SecretToggleTip}"
+                                    Command="{Binding ToggleSecretCommand}" />
+                            <TextBlock Text="{Binding SecretText}" Style="{StaticResource T.Dim}" VerticalAlignment="Center"
+                                       TextWrapping="Wrap" AutomationProperties.Name="{Binding SecretLabel}" />
+                        </DockPanel>
+                        <Button x:Name="Act" Margin="0,12,0,0" HorizontalAlignment="Left" Style="{StaticResource Btn.Ghost}"
+                                Content="{Binding ButtonText}" c:Btn.Icon="{Binding ButtonIcon, Converter={StaticResource IconKey}}"
+                                c:Btn.IconSize="14" ContentTemplate="{StaticResource WrapText}"
+                                Command="{Binding Command}"
+                                Visibility="{Binding ShowButton, Converter={StaticResource BoolVis}}" />
+                    </StackPanel>
+
+                    <TextBlock Text="{Binding Body, Converter={StaticResource Disp}}" Style="{StaticResource T.Dim}" LineHeight="18" />
+                </DockPanel>
+            </ContentControl>
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding IsCurrent}" Value="True">
+                    <Setter TargetName="Tile" Property="BorderBrush" Value="{DynamicResource B.Accent}" />
+                    <Setter TargetName="Act" Property="Style" Value="{StaticResource Btn.Accent}" />
+                    <Setter TargetName="IcoBg" Property="Background" Value="{DynamicResource B.AccentSoft}" />
+                </DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
+        <StackPanel Margin="28,22,28,24" MaxWidth="1040" HorizontalAlignment="Stretch">
+            <TextBlock Text="{l:T ui.start.title}" Style="{StaticResource T.Welcome}" FontSize="20" />
+            <TextBlock Margin="0,6,0,0" Text="{l:T ui.start.lead}" Style="{StaticResource T.Dim}" FontSize="12.6" LineHeight="20" />
+
+            <!-- numbered steps -->
+            <ItemsControl Margin="0,20,0,4" ItemsSource="{Binding Steps}" Focusable="False">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <UniformGrid Rows="1" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate DataType="{x:Type vm:StepVm}">
+                        <DockPanel Margin="0,0,12,0">
+                            <Grid DockPanel.Dock="Left" Width="28" Height="28" Margin="0,0,10,0" VerticalAlignment="Top">
+                                <Ellipse x:Name="Circle" Fill="{DynamicResource B.Control}" />
+                                <TextBlock x:Name="Num" Text="{Binding Number}" FontWeight="SemiBold" FontSize="13"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{DynamicResource B.TextDim}" />
+                                <c:IconView x:Name="Check" Size="15" StrokeWidth="2.6" Data="{StaticResource I.check}"
+                                            Foreground="{DynamicResource B.Good}" Visibility="Collapsed" />
+                            </Grid>
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock x:Name="Title" Text="{Binding Title, Converter={StaticResource Disp}}" FontWeight="SemiBold" TextWrapping="Wrap"
+                                           Foreground="{DynamicResource B.TextDim}" />
+                                <TextBlock x:Name="StateText" Margin="0,1,0,0" Style="{StaticResource T.Dim}" FontSize="11" Visibility="Collapsed" />
+                            </StackPanel>
+                        </DockPanel>
+                        <DataTemplate.Triggers>
+                            <DataTrigger Binding="{Binding IsCurrent}" Value="True">
+                                <Setter TargetName="Circle" Property="Fill" Value="{DynamicResource B.Accent}" />
+                                <Setter TargetName="Num" Property="Foreground" Value="{DynamicResource B.AccentText}" />
+                                <Setter TargetName="Title" Property="Foreground" Value="{DynamicResource B.Text}" />
+                                <Setter TargetName="StateText" Property="Text" Value="{l:T ui.start.current}" />
+                                <Setter TargetName="StateText" Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding IsDone}" Value="True">
+                                <Setter TargetName="Circle" Property="Fill" Value="{DynamicResource B.GoodSoft}" />
+                                <Setter TargetName="Num" Property="Visibility" Value="Collapsed" />
+                                <Setter TargetName="Check" Property="Visibility" Value="Visible" />
+                                <Setter TargetName="Title" Property="Foreground" Value="{DynamicResource B.Text}" />
+                                <Setter TargetName="StateText" Property="Text" Value="{l:T ui.start.stepDone}" />
+                                <Setter TargetName="StateText" Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </DataTemplate.Triggers>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <!-- tiles -->
+            <c:AdaptiveGrid Margin="0,16,0,0" MinColumnWidth="250" MaxColumns="3" Gap="14" EqualHeights="True">
+                <ContentPresenter Content="{Binding DriverTile}" ContentTemplate="{StaticResource TileTpl}" />
+                <ContentPresenter Content="{Binding SettingsTile}" ContentTemplate="{StaticResource TileTpl}" />
+                <ContentPresenter Content="{Binding ConnectTile}" ContentTemplate="{StaticResource TileTpl}" />
+            </c:AdaptiveGrid>
+
+            <Button Margin="0,18,0,0" HorizontalAlignment="Right" Style="{StaticResource Btn.Ghost}" Content="{l:T ui.start.skip}"
+                    c:Btn.Icon="{StaticResource I.chevron-right}" c:Btn.IconSize="14" ContentTemplate="{StaticResource WrapText}"
+                    Command="{Binding SkipStartCommand}" />
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

@@ -1,0 +1,77 @@
+<UserControl x:Class="VRAirBridge.App.Ui.Views.DialogCard"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:c="clr-namespace:VRAirBridge.App.Ui.Controls"
+             xmlns:l="clr-namespace:VRAirBridge.App.Ui"
+             xmlns:vm="clr-namespace:VRAirBridge.App.Ui.ViewModels"
+             x:Name="Self" Focusable="False"
+             MinWidth="380" MaxWidth="580">
+    <!-- One dialog (DataContext: DialogVm): icon + title, message, selectable lines, footer, copy + buttons. -->
+    <Grid>
+        <Border CornerRadius="10" Background="{DynamicResource B.PopupBg}" Effect="{DynamicResource E.Popup}" />
+        <Border CornerRadius="10" Background="{DynamicResource B.PopupBg}" BorderBrush="{DynamicResource B.CardBorder}"
+                BorderThickness="1" Padding="20,18,20,16">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <DockPanel x:Name="TitleRow" Grid.Row="0" Margin="0,0,0,12" Background="Transparent">
+                    <Border DockPanel.Dock="Left" Width="32" Height="32" CornerRadius="16" Margin="0,0,12,0" VerticalAlignment="Top"
+                            Background="{Binding IconTone, Converter={StaticResource ToneBrush}, ConverterParameter=soft}">
+                        <c:IconView Size="17" Data="{Binding IconKey, Converter={StaticResource IconKey}}"
+                                    Foreground="{Binding IconTone, Converter={StaticResource ToneBrush}}" />
+                    </Border>
+                    <TextBlock Text="{Binding Title, Converter={StaticResource Disp}}" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap" VerticalAlignment="Center" />
+                </DockPanel>
+
+                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False"
+                              MaxHeight="{Binding BodyMaxHeight, ElementName=Self}">
+                    <StackPanel>
+                        <TextBlock Text="{Binding Message, Converter={StaticResource Disp}}" TextWrapping="Wrap" LineHeight="19"
+                                   Visibility="{Binding HasMessage, Converter={StaticResource BoolVis}}" />
+                        <TextBox Style="{StaticResource Box.ReadOnly}" Margin="0,8,0,0" MaxHeight="300"
+                                 FontFamily="{DynamicResource F.Mono}"
+                                 Text="{Binding LinesText, Mode=OneWay}"
+                                 Visibility="{Binding HasLines, Converter={StaticResource BoolVis}}" />
+                        <TextBlock Margin="0,10,0,0" Text="{Binding Footer, Converter={StaticResource Disp}}" TextWrapping="Wrap"
+                                   Visibility="{Binding Footer, Converter={StaticResource EmptyVis}}" />
+                        <TextBlock Margin="0,10,0,0" Text="{Binding Footnote, Converter={StaticResource Disp}}" Style="{StaticResource T.Dim}"
+                                   Visibility="{Binding Footnote, Converter={StaticResource EmptyVis}}" />
+                    </StackPanel>
+                </ScrollViewer>
+
+                <DockPanel Grid.Row="2" Margin="0,16,0,0" LastChildFill="True">
+                    <Button DockPanel.Dock="Left" VerticalAlignment="Bottom" Style="{StaticResource Btn.Plain}"
+                            c:Btn.Icon="{StaticResource I.copy}" c:Btn.IconSize="14"
+                            Content="{Binding CopyText}" Command="{Binding CopyCommand}" ToolTip="{l:T dialog.copy}" />
+                    <ItemsControl x:Name="ButtonList" Margin="12,0,0,0" ItemsSource="{Binding Buttons}" Focusable="False"
+                                  HorizontalAlignment="Right">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <c:GapWrapPanel Gap="8" RowGap="8" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="{x:Type vm:DialogButtonVm}">
+                                <Button x:Name="B" MinWidth="88" Content="{Binding Text}" Command="{Binding Command}"
+                                        ContentTemplate="{StaticResource WrapText}" Style="{StaticResource Btn.Flat}" />
+                                <DataTemplate.Triggers>
+                                    <DataTrigger Binding="{Binding IsPrimary}" Value="True">
+                                        <Setter TargetName="B" Property="Style" Value="{StaticResource Btn.Accent}" />
+                                        <Setter TargetName="B" Property="Tag" Value="primary" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding IsDanger}" Value="True">
+                                        <Setter TargetName="B" Property="Style" Value="{StaticResource Btn.Danger}" />
+                                    </DataTrigger>
+                                </DataTemplate.Triggers>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </DockPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

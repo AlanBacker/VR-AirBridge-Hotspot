@@ -1,0 +1,17 @@
+{
+  "driverVersion": "1.27.831.2023",
+  "driverDate": "2023-08-31",
+  "inf": "netrtwlanufb.inf",
+  "files": [
+    { "name": "RTUWPSrvcLib.dll", "sha256": "68d8625af3a5ffc85e66de0d33ddf5f54401d35cffe7a164b33821f10ae21b8f", "length": 1020560 },
+    { "name": "RTUWPSrvcMain.exe", "sha256": "8f1c32501551eb8d35378bd035220d1075e5c220c2c1c3f467cefffd50240504", "length": 1015440 },
+    { "name": "RTUWPUsbSwExt.dll", "sha256": "e561448576e1055b12083ed611a16c4a6a4da01fea192ee95ebe0028282f2f74", "length": 1039504 },
+    { "name": "RTUWPWlanExt.dll", "sha256": "536364bb62443993b5f0a1c7b2376dee7c4541e97e9a7fb342cc6f2cd457a793", "length": 965664 },
+    { "name": "Rtlihvs.dll", "sha256": "392f42a8debe4aeed51ba8c5e8e0db127264e764ef04920d3d1b9b93e381359f", "length": 1186448 },
+    { "name": "TXPWR_ByRate.txt", "sha256": "92ebc39af6b6e583b6fba81c43709de55285d75bbcf6f3493e99e83d4884ed9a", "length": 2383 },
+    { "name": "TXPWR_LMT.txt", "sha256": "5a6c85b9bc80ae62392d5dcc93619db6315ac8c241cb03472a2d244d5b2667cc", "length": 21469 },
+    { "name": "netrtwlanufb.cat", "sha256": "102338dbabe7d4cdf9ea9ae56fb2c07cd34c2d6a6917e3077ee542fae8187e87", "length": 14371 },
+    { "name": "netrtwlanufb.inf", "sha256": "a102017cd56550f3c72e063d44bb5a8c45e839482267346c1d1681297986928b", "length": 113654 },
+    { "name": "rtwlanufb.sys", "sha256": "e1c816b3501f170a6ce1987aa616843f00bd1870eb87007a774704e88b09ac0b", "length": 6541968 }
+  ]
+}

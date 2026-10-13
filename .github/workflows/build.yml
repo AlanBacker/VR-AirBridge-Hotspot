@@ -1,0 +1,31 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
+      # Unit tests (Core + driver package checks).
+      - name: Test
+        run: dotnet test "src/VRAirBridge.sln" -c Release
+
+      # Self-contained single-file exe (requireAdministrator manifest).
+      - name: Publish
+        run: dotnet publish "src/VRAirBridge.App/VRAirBridge.App.csproj" -c Release -o dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: VRAirBridgeHotspot
+          path: dist/VRAirBridgeHotspot.exe
+          if-no-files-found: error

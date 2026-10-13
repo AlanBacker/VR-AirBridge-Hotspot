@@ -1,0 +1,16 @@
+* text=auto
+
+*.cs    text
+*.xaml  text
+*.json  text
+
+*.sys   binary
+*.dll   binary
+*.exe   binary
+*.cat   binary
+*.ico   binary
+*.png   binary
+*.zip   binary
+
+# Bundled driver: byte-exact (SHA-256 in driver-manifest.json, signed by the .cat), no line-ending conversion.
+src/VRAirBridge.App/driver/** -text

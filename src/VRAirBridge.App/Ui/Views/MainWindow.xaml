@@ -1,0 +1,193 @@
+<Window x:Class="VRAirBridge.App.Ui.Views.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:c="clr-namespace:VRAirBridge.App.Ui.Controls"
+        xmlns:l="clr-namespace:VRAirBridge.App.Ui"
+        xmlns:v="clr-namespace:VRAirBridge.App.Ui.Views"
+        x:Name="Root"
+        Title="{Binding WindowTitle}"
+        Width="1200" Height="780" MinWidth="1000" MinHeight="640"
+        WindowStartupLocation="CenterScreen"
+        Background="{DynamicResource B.Window}"
+        Foreground="{DynamicResource B.Text}"
+        FontSize="12"
+        UseLayoutRounding="True"
+        SnapsToDevicePixels="True"
+        TextOptions.TextFormattingMode="Display">
+    <Window.Resources>
+        <!-- Header button: shows only its icon while the window is narrow. -->
+        <Style x:Key="HeaderBtn" TargetType="Button" BasedOn="{StaticResource Btn.Plain}">
+            <Setter Property="Margin" Value="2,0" />
+            <Setter Property="c:Btn.IconSize" Value="15" />
+            <Setter Property="Content" Value="{Binding Tag, RelativeSource={RelativeSource Self}}" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsCompact, ElementName=Root}" Value="True">
+                    <Setter Property="Content" Value="{x:Null}" />
+                    <Setter Property="Width" Value="30" />
+                    <Setter Property="Padding" Value="0" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="PrimaryBtn" TargetType="Button" BasedOn="{StaticResource Btn.Accent}">
+            <Setter Property="MinHeight" Value="32" />
+            <Setter Property="Padding" Value="14,4,16,4" />
+            <Setter Property="c:Btn.IconSize" Value="14" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding PrimaryIsStop}" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource B.BadSoft}" />
+                    <Setter Property="Foreground" Value="{DynamicResource B.Bad}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+    </Window.Resources>
+
+    <Grid>
+        <Grid x:Name="Main">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <!-- ======================================================== header -->
+            <Border Grid.Row="0" Padding="16,10,14,10" BorderThickness="0,0,0,1" BorderBrush="{DynamicResource B.Divider}">
+                <DockPanel LastChildFill="True">
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Button Style="{StaticResource HeaderBtn}" Tag="{l:T ui.header.refresh}" c:Btn.Icon="{StaticResource I.refresh-cw}"
+                                ToolTip="{l:T ui.header.refreshTip}" AutomationProperties.Name="{l:T ui.header.refresh}"
+                                Command="{Binding RefreshCommand}" />
+                        <Button Style="{StaticResource HeaderBtn}" Tag="{l:T ui.header.docs}" c:Btn.Icon="{StaticResource I.book-open}"
+                                ToolTip="{l:T ui.header.docsTip}" AutomationProperties.Name="{l:T ui.header.docs}"
+                                Command="{Binding DocsCommand}" />
+                        <ComboBox x:Name="LangBox" Margin="6,0,2,0" MinWidth="44" VerticalAlignment="Center"
+                                  c:Btn.Icon="{StaticResource I.languages}" c:Btn.ShortText="{Binding LanguageShort}"
+                                  ItemsSource="{Binding Languages}" SelectedItem="{Binding SelectedLanguage}" DisplayMemberPath="Text"
+                                  ToolTip="{Binding LanguageTip}" AutomationProperties.Name="{l:T ui.header.language}">
+                            <ComboBox.Style>
+                                <Style TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsCompact, ElementName=Root}" Value="True">
+                                            <Setter Property="Tag" Value="compact" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </ComboBox.Style>
+                        </ComboBox>
+                        <Button Style="{StaticResource Btn.Icon}" Margin="4,0,0,0" c:Btn.IconSize="16"
+                                c:Btn.Icon="{Binding ThemeIcon, Converter={StaticResource IconKey}}"
+                                ToolTip="{Binding ThemeTip}" AutomationProperties.Name="{Binding ThemeTip}"
+                                Command="{Binding ToggleThemeCommand}" />
+                        <Button Style="{StaticResource Btn.Icon}" Margin="2,0,10,0" c:Btn.IconSize="16"
+                                c:Btn.Icon="{StaticResource I.sliders-horizontal}"
+                                ToolTip="{Binding SidebarTip}" AutomationProperties.Name="{Binding SidebarTip}"
+                                Command="{Binding ToggleSidebarCommand}" />
+                        <Button x:Name="PrimaryButton" Style="{StaticResource PrimaryBtn}"
+                                Content="{Binding PrimaryText}" c:Btn.Icon="{Binding PrimaryIcon, Converter={StaticResource IconKey}}"
+                                ToolTip="{Binding PrimaryTip}" IsEnabled="{Binding CanPrimary}"
+                                Command="{Binding PrimaryCommand}" />
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <Border Width="30" Height="30" CornerRadius="8" Background="{DynamicResource B.Accent}" VerticalAlignment="Center">
+                            <c:IconView Size="18" Data="{StaticResource I.wifi}" Foreground="{DynamicResource B.AccentText}" StrokeWidth="2.2" />
+                        </Border>
+                        <TextBlock Margin="10,0,12,0" VerticalAlignment="Center" FontSize="15" FontWeight="SemiBold"
+                                   Text="{Binding AppName}" TextWrapping="NoWrap" />
+                        <c:Pill VerticalAlignment="Center" Text="{Binding StateText}" Tone="{Binding StateTone}"
+                                ToolTip="{Binding Headline}" />
+                    </StackPanel>
+                </DockPanel>
+            </Border>
+
+            <!-- ======================================================== not-admin banner -->
+            <Border Grid.Row="1" Margin="16,10,16,0" Style="{StaticResource Callout}"
+                    Visibility="{Binding ShowAdminBanner, Converter={StaticResource BoolVis}}">
+                <DockPanel>
+                    <c:IconView DockPanel.Dock="Left" Size="16" Margin="0,1,10,0" VerticalAlignment="Top"
+                                Data="{StaticResource I.triangle-alert}" Foreground="{DynamicResource B.Warn}" />
+                    <Button DockPanel.Dock="Right" Margin="12,0,0,0" VerticalAlignment="Center" Style="{StaticResource Btn.Ghost}"
+                            Content="{l:T ui.banner.elevate}" c:Btn.Icon="{StaticResource I.shield-check}"
+                            ToolTip="{l:T ui.banner.elevateTip}" Command="{Binding ElevateCommand}"
+                            Visibility="{Binding CanElevate, Converter={StaticResource BoolVis}}" />
+                    <TextBlock Text="{l:T ui.banner.notAdmin}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                </DockPanel>
+            </Border>
+
+            <!-- ======================================================== body -->
+            <Grid Grid.Row="2">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <v:StartPage Grid.Column="0" Visibility="{Binding ShowStart, Converter={StaticResource BoolVis}}" />
+                <v:DashboardView x:Name="Dashboard" Grid.Column="0" Visibility="{Binding ShowStart, Converter={StaticResource BoolVisInv}}" />
+
+                <Border Grid.Column="1" Width="344" BorderThickness="1,0,0,0" BorderBrush="{DynamicResource B.Divider}"
+                        Background="{DynamicResource B.Panel}"
+                        Visibility="{Binding SidebarOpen, Converter={StaticResource BoolVis}}">
+                    <v:SidebarView x:Name="Sidebar" />
+                </Border>
+
+                <!-- ==================================================== toasts (main column only, never over the sidebar) -->
+                <ItemsControl x:Name="ToastList" ItemsSource="{Binding Toasts.Items}" Focusable="False"
+                              Grid.Column="0" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,18,14" Width="380">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Grid Margin="0,8,0,0" c:ToastMotion.Enabled="True" c:ToastMotion.Leaving="{Binding IsLeaving}">
+                                <Border CornerRadius="8" Background="{DynamicResource B.PopupBg}" Effect="{DynamicResource E.Toast}" />
+                                <Border CornerRadius="8" Background="{DynamicResource B.PopupBg}" BorderThickness="1"
+                                        BorderBrush="{Binding Tone, Converter={StaticResource ToneBrush}, ConverterParameter=border}"
+                                        Padding="12,10,6,10">
+                                    <DockPanel>
+                                        <c:IconView DockPanel.Dock="Left" Size="16" Margin="0,1,10,0" VerticalAlignment="Top"
+                                                    Data="{Binding IconKey, Converter={StaticResource IconKey}}"
+                                                    Foreground="{Binding Tone, Converter={StaticResource ToneBrush}}" />
+                                        <Button DockPanel.Dock="Right" Style="{StaticResource Btn.Icon}" Width="24" Height="24" Margin="6,-3,0,0"
+                                                VerticalAlignment="Top" c:Btn.Icon="{StaticResource I.x}" c:Btn.IconSize="13"
+                                                ToolTip="{l:T ui.toast.dismiss}" AutomationProperties.Name="{l:T ui.toast.dismiss}"
+                                                Command="{Binding DismissCommand}" />
+                                        <TextBlock Text="{Binding Text, Converter={StaticResource Disp}}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                                    </DockPanel>
+                                </Border>
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </Grid>
+
+            <!-- ======================================================== status bar -->
+            <Border Grid.Row="3" Padding="16,6,16,6" BorderThickness="0,1,0,0" BorderBrush="{DynamicResource B.Divider}"
+                    AutomationProperties.Name="{l:T ui.sb.title}">
+                <ItemsControl ItemsSource="{Binding StatusSegs}" Focusable="False">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <c:GapWrapPanel Gap="18" RowGap="2" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel Orientation="Horizontal" Background="Transparent" ToolTip="{Binding Tip}">
+                                <c:StatusDot Tone="{Binding Tone}" Radius="3.5" Margin="0,0,5,0" />
+                                <TextBlock x:Name="Lbl" Text="{Binding Label, Converter={StaticResource Disp}}" Foreground="{DynamicResource B.TextDim}" Margin="0,0,5,0"
+                                           VerticalAlignment="Center" />
+                                <TextBlock Text="{Binding Value, Converter={StaticResource Disp}}" VerticalAlignment="Center"
+                                           Foreground="{Binding Tone, Converter={StaticResource ToneBrush}}" />
+                            </StackPanel>
+                            <DataTemplate.Triggers>
+                                <DataTrigger Binding="{Binding Label}" Value="">
+                                    <Setter TargetName="Lbl" Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </DataTemplate.Triggers>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </Border>
+        </Grid>
+
+        <!-- ============================================================ dialogs -->
+        <v:DialogLayer x:Name="DialogLayer" DataContext="{Binding Dialogs}" />
+    </Grid>
+</Window>
