@@ -7,6 +7,7 @@ using VRAirBridge.Core.Nat;
 using VRAirBridge.Core.Net;
 using VRAirBridge.Core.Settings;
 using VRAirBridge.Core.SystemSetup;
+using VRAirBridge.Core.Update;
 using VRAirBridge.Core.Util;
 
 namespace VRAirBridge.Core;
@@ -27,6 +28,7 @@ public static class Diagnostics
 
         L(Loc.T("diag.vrAirBridgeHotspotDiagnostics", DateTime.Now));
         L(Loc.T("diag.appVersionWindowsAdministrator", AppInfo.Version, Environment.OSVersion.Version, (AdminUtil.IsAdministrator() ? Loc.T("common.yes") : Loc.T("common.no"))));
+        L(Loc.T("diag.installedWithSetup", YesNo(InstallInfo.IsInstalled(exePath ?? Environment.ProcessPath ?? ""))));
         L("");
 
         DongleInfo? dongle = null;

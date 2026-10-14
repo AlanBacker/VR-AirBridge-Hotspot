@@ -41,6 +41,8 @@ public sealed class AppStatus
     /// <summary>Join monitor: every device seen joining (stage, last failure), most recent first. Includes devices that never got connected.</summary>
     public IReadOnlyList<ClientJoinRecord> Joins { get; init; } = Array.Empty<ClientJoinRecord>();
     public IReadOnlyList<string> Hints { get; init; } = Array.Empty<string>();
+    /// <summary>D-Link 收信号比内置网卡弱很多（多半是 USB 口位置不好）：界面上显示换口示意图。</summary>
+    public bool RxWeak { get; init; }
     public int? RetryInSeconds { get; init; }
     /// <summary>D-Link 驱动状态（每个周期用已查到的信息快速判断）。</summary>
     public DriverState Driver { get; init; } = new(DriverStateKind.DongleNotPresent);

@@ -150,11 +150,16 @@ public sealed class SettingsStore
         DefaultIgnoreCondition = JsonIgnoreCondition.Never,
     };
 
+    public const string FolderName = "VRAirBridgeHotspot";
+    public const string ConfigFileName = "config.json";
+    public const string LeaseFileName = "dhcp-leases.json";
+    public const string LogFolderName = "logs";
+
     private readonly object _lock = new();
     public string DataDirectory { get; }
-    public string ConfigPath => Path.Combine(DataDirectory, "config.json");
-    public string LeasePath => Path.Combine(DataDirectory, "dhcp-leases.json");
-    public string LogDirectory => Path.Combine(DataDirectory, "logs");
+    public string ConfigPath => Path.Combine(DataDirectory, ConfigFileName);
+    public string LeasePath => Path.Combine(DataDirectory, LeaseFileName);
+    public string LogDirectory => Path.Combine(DataDirectory, LogFolderName);
     public bool IsFirstRun { get; private set; }
 
     public SettingsStore(string? dataDirectory = null)
@@ -162,26 +167,17 @@ public sealed class SettingsStore
         DataDirectory = dataDirectory ?? ResolveDataDirectory();
     }
 
-    /// <summary>优先放在 exe 旁边（方便拷给舍友）；不可写时退回 %ProgramData%。</summary>
+    /// <summary>
+    /// %LocalAppData%\VRAirBridgeHotspot: settings, DHCP leases, logs and diagnostics. Nothing is written next to the exe
+    /// (versions up to 1.0.2 did; <see cref="LegacyDataMigration"/> moves those files here).
+    /// </summary>
     public static string ResolveDataDirectory()
     {
-        var exeDir = AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar);
-        if (IsWritable(exeDir)) return exeDir;
-        var alt = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "VRAirBridgeHotspot");
-        Directory.CreateDirectory(alt);
-        return alt;
-    }
-
-    private static bool IsWritable(string dir)
-    {
-        try
-        {
-            var probe = Path.Combine(dir, ".write-test-" + Guid.NewGuid().ToString("N"));
-            File.WriteAllText(probe, "x");
-            File.Delete(probe);
-            return true;
-        }
-        catch { return false; }
+        var root = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        if (string.IsNullOrEmpty(root)) root = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
+        var dir = Path.Combine(root, FolderName);
+        try { Directory.CreateDirectory(dir); } catch { }
+        return dir;
     }
 
     public AppSettings Load()

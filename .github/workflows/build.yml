@@ -24,8 +24,25 @@ jobs:
       - name: Publish
         run: dotnet publish "src/VRAirBridge.App/VRAirBridge.App.csproj" -c Release -o dist
 
+      # Setup with the same exe (Inno Setup 6, installed with Chocolatey when the runner does not have it;
+      # pinned so that a new major version cannot change the build unnoticed).
+      - name: Setup
+        shell: pwsh
+        run: |
+          $iscc = @("${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe", "$env:ProgramFiles\Inno Setup 6\ISCC.exe") | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $iscc) {
+            choco install innosetup --version=6.7.1 --no-progress -y
+            $iscc = @("${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe", "$env:ProgramFiles\Inno Setup 6\ISCC.exe") | Where-Object { Test-Path $_ } | Select-Object -First 1
+          }
+          $version = (Select-Xml -Path src/Directory.Build.props -XPath "//Version").Node.InnerText
+          & $iscc "/DAppVersion=$version" installer/VRAirBridgeHotspot.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      # Release assets: keep the portable exe named VRAirBridgeHotspot.exe (the self-update downloads it).
       - uses: actions/upload-artifact@v4
         with:
           name: VRAirBridgeHotspot
-          path: dist/VRAirBridgeHotspot.exe
+          path: |
+            dist/VRAirBridgeHotspot.exe
+            dist/VRAirBridgeHotspot-Setup.exe
           if-no-files-found: error

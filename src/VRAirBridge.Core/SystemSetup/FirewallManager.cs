@@ -68,6 +68,25 @@ public static class FirewallManager
         }
     }
 
+    /// <summary>Program paths in our rules: where the exe was when the rules were last updated. Empty when there are none.</summary>
+    public static List<string> RecordedExePaths()
+    {
+        var paths = new List<string>();
+        try
+        {
+            var policy = Policy();
+            foreach (var name in new[] { AppRuleName, DhcpRuleName })
+            {
+                var r = Find(policy, name);
+                if (r == null) continue;
+                string? path = r.ApplicationName;
+                if (!string.IsNullOrEmpty(path)) paths.Add(path);
+            }
+        }
+        catch { }
+        return paths;
+    }
+
     /// <summary>添加/更新放行规则，删除阻止本程序的入站规则（需要管理员）。返回做了哪些改动。</summary>
     public static List<string> EnsureRules(string exePath)
     {

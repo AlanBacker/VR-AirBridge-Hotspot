@@ -59,7 +59,7 @@
         </DataTemplate>
     </UserControl.Resources>
 
-    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
+    <c:StableScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
         <StackPanel Margin="28,22,28,24" MaxWidth="1040" HorizontalAlignment="Stretch">
             <TextBlock Text="{l:T ui.start.title}" Style="{StaticResource T.Welcome}" FontSize="20" />
             <TextBlock Margin="0,6,0,0" Text="{l:T ui.start.lead}" Style="{StaticResource T.Dim}" FontSize="12.6" LineHeight="20" />
@@ -119,5 +119,5 @@
                     c:Btn.Icon="{StaticResource I.chevron-right}" c:Btn.IconSize="14" ContentTemplate="{StaticResource WrapText}"
                     Command="{Binding SkipStartCommand}" />
         </StackPanel>
-    </ScrollViewer>
+    </c:StableScrollViewer>
 </UserControl>

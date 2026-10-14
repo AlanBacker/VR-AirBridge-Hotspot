@@ -23,7 +23,7 @@
         </Style>
     </UserControl.Resources>
 
-    <ScrollViewer x:Name="PageScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
+    <c:StableScrollViewer x:Name="PageScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
         <!-- LastMinHeight: small enough that every dashboard state fits the default 1200x780 window without the page
              scrolling (checked by the layout pass of ui-screenshot); below that the page scrolls instead. -->
         <c:FillLastPanel Margin="16,14,16,14" Gap="12" LastMinHeight="112">
@@ -51,13 +51,57 @@
                             <DockPanel>
                                 <c:IconView DockPanel.Dock="Left" Size="15" Margin="0,1,9,0" VerticalAlignment="Top"
                                             Data="{StaticResource I.triangle-alert}" Foreground="{DynamicResource B.Warn}" />
-                                <ItemsControl ItemsSource="{Binding HintItems}" Focusable="False">
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate>
-                                            <TextBlock Margin="0,1" Text="{Binding Converter={StaticResource Disp}}" TextWrapping="Wrap" />
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
+                                <StackPanel>
+                                    <ItemsControl ItemsSource="{Binding HintItems}" Focusable="False">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Margin="0,1" Text="{Binding Converter={StaticResource Disp}}" TextWrapping="Wrap" />
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+
+                                    <!-- weak D-Link reception: where to plug it in -->
+                                    <StackPanel Margin="0,8,0,0" Orientation="Horizontal"
+                                                Visibility="{Binding ShowUsbTip, Converter={StaticResource BoolVis}}">
+                                        <StackPanel Width="150" Margin="0,0,16,0">
+                                            <Viewbox Height="56" HorizontalAlignment="Center">
+                                                <Canvas Width="120" Height="80">
+                                                    <!-- hub with a keyboard, a mic and a drive plugged in next to the D-Link -->
+                                                    <Line X1="33" Y1="30" X2="33" Y2="6" Stroke="{DynamicResource B.TextDim}" StrokeThickness="2" />
+                                                    <Line X1="51" Y1="30" X2="51" Y2="10" Stroke="{DynamicResource B.TextDim}" StrokeThickness="2" />
+                                                    <Line X1="87" Y1="30" X2="87" Y2="4" Stroke="{DynamicResource B.TextDim}" StrokeThickness="2" />
+                                                    <Rectangle Canvas.Left="64" Canvas.Top="11" Width="11" Height="20" RadiusX="2" RadiusY="2" Fill="{DynamicResource B.Accent}" />
+                                                    <Rectangle Canvas.Left="18" Canvas.Top="30" Width="84" Height="22" RadiusX="5" RadiusY="5"
+                                                               Fill="{DynamicResource B.Surface}" Stroke="{DynamicResource B.TextDim}" StrokeThickness="1.5" />
+                                                    <Line X1="60" Y1="52" X2="60" Y2="76" Stroke="{DynamicResource B.TextDim}" StrokeThickness="2" />
+                                                    <c:IconView Canvas.Left="100" Canvas.Top="0" Size="20" Data="{StaticResource I.circle-x}" Foreground="{DynamicResource B.Bad}" />
+                                                </Canvas>
+                                            </Viewbox>
+                                            <TextBlock Margin="0,4,0,0" Text="{l:T ui.rx.picBad}" Style="{StaticResource T.Dim}" FontSize="11"
+                                                       TextAlignment="Center" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                        <StackPanel Width="150">
+                                            <Viewbox Height="56" HorizontalAlignment="Center">
+                                                <Canvas Width="120" Height="80">
+                                                    <!-- back of the PC: the D-Link straight in a motherboard port -->
+                                                    <Rectangle Canvas.Left="34" Canvas.Top="4" Width="52" Height="72" RadiusX="4" RadiusY="4"
+                                                               Fill="{DynamicResource B.Surface}" Stroke="{DynamicResource B.TextDim}" StrokeThickness="1.5" />
+                                                    <Rectangle Canvas.Left="42" Canvas.Top="10" Width="18" Height="40" RadiusX="1" RadiusY="1"
+                                                               Stroke="{DynamicResource B.TextDim}" StrokeThickness="1" />
+                                                    <Rectangle Canvas.Left="46" Canvas.Top="15" Width="10" Height="4" Stroke="{DynamicResource B.TextDim}" StrokeThickness="1" />
+                                                    <Rectangle Canvas.Left="46" Canvas.Top="29" Width="10" Height="4" Stroke="{DynamicResource B.TextDim}" StrokeThickness="1" />
+                                                    <Rectangle Canvas.Left="46" Canvas.Top="36" Width="10" Height="4" Stroke="{DynamicResource B.TextDim}" StrokeThickness="1" />
+                                                    <Rectangle Canvas.Left="66" Canvas.Top="12" Width="12" Height="56" RadiusX="1" RadiusY="1"
+                                                               Stroke="{DynamicResource B.TextDim}" StrokeThickness="1" />
+                                                    <Rectangle Canvas.Left="20" Canvas.Top="20" Width="28" Height="8" RadiusX="2" RadiusY="2" Fill="{DynamicResource B.Accent}" />
+                                                    <c:IconView Canvas.Left="100" Canvas.Top="0" Size="20" Data="{StaticResource I.circle-check}" Foreground="{DynamicResource B.Good}" />
+                                                </Canvas>
+                                            </Viewbox>
+                                            <TextBlock Margin="0,4,0,0" Text="{l:T ui.rx.picGood}" Style="{StaticResource T.Dim}" FontSize="11"
+                                                       TextAlignment="Center" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                    </StackPanel>
+                                </StackPanel>
                             </DockPanel>
                         </Border>
 
@@ -67,8 +111,9 @@
                         <TextBlock Text="{Binding HotspotTitle, Converter={StaticResource Disp}}" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap" />
                         <TextBlock Margin="0,2,0,0" Text="{Binding HotspotSubtitle, Converter={StaticResource Disp}}" Style="{StaticResource T.Dim}" />
 
-                        <!-- metrics -->
-                        <ItemsControl Margin="0,10,0,0" ItemsSource="{Binding Metrics}" Focusable="False">
+                        <!-- metrics (the USB picture above takes their place: they say nothing useful while the D-Link can barely hear) -->
+                        <ItemsControl Margin="0,10,0,0" ItemsSource="{Binding Metrics}" Focusable="False"
+                                      Visibility="{Binding ShowUsbTip, Converter={StaticResource BoolVisInv}}">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate>
                                     <c:AdaptiveGrid MinColumnWidth="118" MaxColumns="4" Gap="8" Balanced="True" />
@@ -258,6 +303,7 @@
                                      FontFamily="{DynamicResource F.Mono}" FontSize="11.5"
                                      VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
                                      VirtualizingPanel.ScrollUnit="Pixel"
+                                     VirtualizingPanel.CacheLengthUnit="Item" VirtualizingPanel.CacheLength="6"
                                      ScrollViewer.CanContentScroll="True" ScrollViewer.VerticalScrollBarVisibility="Auto"
                                      AutomationProperties.Name="{l:T ui.log.title}">
                                 <ListBox.ItemContainerStyle>
@@ -284,5 +330,5 @@
                 </Grid>
             </ContentControl>
         </c:FillLastPanel>
-    </ScrollViewer>
+    </c:StableScrollViewer>
 </UserControl>

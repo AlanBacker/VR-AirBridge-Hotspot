@@ -90,9 +90,7 @@
                     </StackPanel>
 
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <Border Width="30" Height="30" CornerRadius="8" Background="{DynamicResource B.Accent}" VerticalAlignment="Center">
-                            <c:IconView Size="18" Data="{StaticResource I.wifi}" Foreground="{DynamicResource B.AccentText}" StrokeWidth="2.2" />
-                        </Border>
+                        <c:AppLogoView Size="30" />
                         <TextBlock Margin="10,0,12,0" VerticalAlignment="Center" FontSize="15" FontWeight="SemiBold"
                                    Text="{Binding AppName}" TextWrapping="NoWrap" />
                         <c:Pill VerticalAlignment="Center" Text="{Binding StateText}" Tone="{Binding StateTone}"

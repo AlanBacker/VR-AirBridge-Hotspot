@@ -368,7 +368,7 @@ public sealed partial class MainViewModel
         {
             var res = await _wd!.RevertAsync();
             Quietly(() => OptAutoStart = false);
-            _ = Show(DialogVm.Report(Loc.T("ui.maint.revertResult"), res, Loc.T("ui.maint.revertFooter") + "\n\n" + Loc.T("ui.maint.revertDone")));
+            _ = Show(DialogVm.Report(Loc.T("ui.maint.revertResult"), res, Loc.T("ui.maint.revertFooter", DataDirectoryText) + "\n\n" + Loc.T("ui.maint.revertDone")));
         });
     }
 

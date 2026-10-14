@@ -104,7 +104,8 @@ public partial class DashboardView : UserControl
         if (_logScroll != null)
         {
             _logScroll.ScrollChanged += OnLogScrollChanged;
-            _logScroll.PreviewMouseWheel += OnLogWheel;
+            // handledEventsToo: SmoothScroll takes the wheel before this handler would see it
+            _logScroll.AddHandler(PreviewMouseWheelEvent, new MouseWheelEventHandler(OnLogWheel), true);
             _logScroll.PreviewMouseLeftButtonDown += OnLogMouseDown;
             _logScroll.PreviewMouseLeftButtonUp += OnLogMouseUp;
             _logScroll.LostMouseCapture += OnLogMouseUp;

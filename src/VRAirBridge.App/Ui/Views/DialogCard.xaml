@@ -27,7 +27,7 @@
                     <TextBlock Text="{Binding Title, Converter={StaticResource Disp}}" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap" VerticalAlignment="Center" />
                 </DockPanel>
 
-                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False"
+                <c:StableScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False"
                               MaxHeight="{Binding BodyMaxHeight, ElementName=Self}">
                     <StackPanel>
                         <TextBlock Text="{Binding Message, Converter={StaticResource Disp}}" TextWrapping="Wrap" LineHeight="19"
@@ -76,7 +76,7 @@
                         <TextBlock Margin="0,10,0,0" Text="{Binding Footnote, Converter={StaticResource Disp}}" Style="{StaticResource T.Dim}"
                                    Visibility="{Binding Footnote, Converter={StaticResource EmptyVis}}" />
                     </StackPanel>
-                </ScrollViewer>
+                </c:StableScrollViewer>
 
                 <DockPanel Grid.Row="2" Margin="0,16,0,0" LastChildFill="True">
                     <Button DockPanel.Dock="Left" VerticalAlignment="Bottom" Style="{StaticResource Btn.Plain}"

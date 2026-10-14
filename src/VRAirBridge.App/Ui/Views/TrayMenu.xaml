@@ -29,10 +29,7 @@
                 BorderThickness="1" Padding="6">
             <StackPanel Width="300">
                 <DockPanel Margin="8,6,8,4">
-                    <Border DockPanel.Dock="Left" Width="22" Height="22" CornerRadius="6" Margin="0,0,9,0" VerticalAlignment="Top"
-                            Background="{DynamicResource B.Accent}">
-                        <c:IconView Size="13" Data="{StaticResource I.wifi}" Foreground="{DynamicResource B.AccentText}" StrokeWidth="2.4" />
-                    </Border>
+                    <c:AppLogoView DockPanel.Dock="Left" Size="24" Margin="0,0,9,0" VerticalAlignment="Top" />
                     <StackPanel VerticalAlignment="Center">
                         <TextBlock Text="{l:T app.name}" TextWrapping="Wrap" FontWeight="SemiBold" />
                         <TextBlock Text="{Binding Headline, Converter={StaticResource Disp}}" TextWrapping="Wrap" FontSize="11.5" Margin="0,1,0,0"

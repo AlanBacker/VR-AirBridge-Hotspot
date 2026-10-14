@@ -14,8 +14,11 @@ public static class AppInfo
     /// <summary>Repository that publishes the releases the update checker looks at.</summary>
     public const string GitHubRepo = "AlanBacker/VR-AirBridge-Hotspot";
 
-    /// <summary>File name of the single-file release asset.</summary>
+    /// <summary>File name of the single-file release asset (the portable program; self-update downloads it).</summary>
     public const string ExeName = "VRAirBridgeHotspot.exe";
+
+    /// <summary>File name of the setup attached to the same release (installer\VRAirBridgeHotspot.iss).</summary>
+    public const string SetupName = "VRAirBridgeHotspot-Setup.exe";
 
     /// <summary>"1.0.2" (no "v", no "+commit").</summary>
     public static string Version { get; } = ReadVersion(typeof(AppInfo).Assembly);

@@ -24,6 +24,9 @@ public sealed partial class MainViewModel
     public string Detail { get => _detail; private set => Set(ref _detail, value); }
     public ObservableCollection<string> HintItems { get; } = new();
     public bool HasHints => HintItems.Count > 0;
+    private bool _showUsbTip;
+    /// <summary>D-Link signal is far weaker than the built-in Wi-Fi: show the "use another USB port" picture under the hints.</summary>
+    public bool ShowUsbTip { get => _showUsbTip; private set => Set(ref _showUsbTip, value); }
 
     // ================================================================== hotspot card
 
@@ -165,6 +168,7 @@ public sealed partial class MainViewModel
             foreach (var h in hints) HintItems.Add(h);
             OnPropertyChanged(nameof(HasHints));
         }
+        ShowUsbTip = st.RxWeak;
 
         ApplyDriver(st);
         ApplyHotspot(st);
@@ -527,9 +531,8 @@ public sealed partial class MainViewModel
 
     /// <summary>
     /// "Office-Guest  channel 100/80  -80 dBm  DFS": in a narrow column the line may break after the network name,
-    /// but the tail (channel / signal / DFS) stays together, so "DFS" never ends up alone on a line. Spaces in the tail
-    /// become no-break spaces and a word joiner sits between its other characters (Japanese / Chinese text could
-    /// otherwise break between any two characters, e.g. inside the word for "channel").
+    /// but the tail (channel / signal / DFS) stays together, so "DFS" never ends up alone on a line
+    /// (see <see cref="DisplayText.KeepTogether"/>).
     /// </summary>
     private static string GlueNeighborTail(NeighborBss n, string line)
     {
@@ -537,15 +540,7 @@ public sealed partial class MainViewModel
         if (!line.StartsWith(name, StringComparison.Ordinal)) return line;
         var rest = line[name.Length..];
         var tail = rest.TrimStart();
-        var sb = new System.Text.StringBuilder(line.Length + tail.Length);
-        sb.Append(name).Append(rest, 0, rest.Length - tail.Length);
-        for (int i = 0; i < tail.Length; i++)
-        {
-            char c = tail[i];
-            sb.Append(c == ' ' ? DisplayText.NoBreakSpace : c);
-            if (c != ' ' && i + 1 < tail.Length && tail[i + 1] != ' ') sb.Append(DisplayText.WordJoiner);
-        }
-        return sb.ToString();
+        return string.Concat(name, rest.AsSpan(0, rest.Length - tail.Length), DisplayText.KeepTogether(tail));
     }
 
     /// <summary>Texts that only change with the language (or never).</summary>

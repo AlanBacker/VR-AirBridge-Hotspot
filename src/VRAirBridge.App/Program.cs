@@ -29,6 +29,11 @@ internal sealed class AppOptions
     public bool AutoStart { get; private set; }
     /// <summary>Undo every change this app made to the system, then exit.</summary>
     public bool Uninstall { get; private set; }
+    /// <summary>With --uninstall: no dialogs (the uninstaller runs it); the results go to the log only.</summary>
+    public bool Quiet { get; private set; }
+    /// <summary>"--exit [stop]": closes the running instance and waits for it (the setup uses it); "stop" also stops the hotspot.</summary>
+    public bool Exit { get; private set; }
+    public bool ExitStop { get; private set; }
     /// <summary>Print diagnostics and exit (optional file path).</summary>
     public bool Diag { get; private set; }
     public string? DiagPath { get; private set; }
@@ -52,6 +57,11 @@ internal sealed class AppOptions
     public string? Internet { get; private set; }
     /// <summary>"--lang auto|en|zh-CN|ja|ko": display language for this run (overrides ui.language, not saved).</summary>
     public string? Language { get; private set; }
+    /// <summary>Development: "--write-icon path" regenerates app.ico from the logo drawing and exits.</summary>
+    public string? WriteIconPath { get; private set; }
+    /// <summary>Development: "--ui-demo [scene]" opens the window with mock data to try the UI by hand.</summary>
+    public bool UiDemo { get; private set; }
+    public string? UiDemoScene { get; private set; }
 
     public static AppOptions Parse(string[] args)
     {
@@ -64,6 +74,8 @@ internal sealed class AppOptions
             {
                 case "--autostart": o.AutoStart = true; break;
                 case "--uninstall": case "--revert": o.Uninstall = true; break;
+                case "--quiet": o.Quiet = true; break;
+                case "--exit": o.Exit = true; o.ExitStop = string.Equals(Next(), "stop", StringComparison.OrdinalIgnoreCase); break;
                 case "--diag": o.Diag = true; o.DiagPath = Next(); break;
                 case "--screenshot": o.ScreenshotPath = Next(); break;
                 case "--screenshot-delay": if (int.TryParse(Next(), out var d)) o.ScreenshotDelaySeconds = Math.Clamp(d, 1, 120); break;
@@ -75,6 +87,8 @@ internal sealed class AppOptions
                 case "--install-driver": o.InstallDriver = true; break;
                 case "--internet": o.Internet = Next() ?? ""; break;
                 case "--lang": case "--language": o.Language = Next() ?? ""; break;
+                case "--write-icon": o.WriteIconPath = Next() ?? ""; break;
+                case "--ui-demo": o.UiDemo = true; o.UiDemoScene = Next(); break;
             }
         }
         return o;
@@ -87,7 +101,10 @@ internal static class Program
     private static Mutex? _mutex;
     private static EventWaitHandle? _showEvent;
     private static EventWaitHandle? _internetOn, _internetOff;
+    private static EventWaitHandle? _exitKeep, _exitStop;
     private const string ShowEvent = @"\VRAirBridgeHotspot.Show";
+    private const string ExitKeepEvent = @"\VRAirBridgeHotspot.Exit.Keep";
+    private const string ExitStopEvent = @"\VRAirBridgeHotspot.Exit.Stop";
     private const string InternetOnEvent = @"\VRAirBridgeHotspot.Internet.On";
     private const string InternetOffEvent = @"\VRAirBridgeHotspot.Internet.Off";
     private const string MutexName = @"\VRAirBridgeHotspot.SingleInstance";
@@ -104,12 +121,15 @@ internal static class Program
         bool isAdmin = AdminUtil.IsAdministrator();
 
         // Display language: --lang, then ui.language from config.json, then the Windows display language.
-        // The UI screenshot mode never reads config.json (it renders mock data only).
+        // The UI screenshot and demo modes never read config.json (they show mock data only).
         bool langFromCli = ApplyCliLanguage(opts.Language);
-        var early = opts.UiScreenshot ? null : ReadUiPreferences();
+        var early = opts.UiScreenshot || opts.UiDemo ? null : ReadUiPreferences();
         if (!langFromCli) Loc.SetLanguage(early?.Language);
 
         if (opts.UiScreenshot) return RunUiScreenshot(opts);
+        if (opts.UiDemo) return RunUiDemo(opts);
+        if (opts.WriteIconPath != null) return RunWriteIcon(opts.WriteIconPath);
+        if (opts.Exit) return RunExit(opts.ExitStop);
         if (opts.Diag) return RunDiag(opts);
         if (opts.DriverStatus) return RunDriverStatus(isAdmin);
         if (opts.InstallDriver) return RunInstallDriver(isAdmin);
@@ -146,33 +166,39 @@ internal static class Program
         if (!acquired && alreadyRunning)
         {
             if (opts.Uninstall)
+            {
+                if (opts.Quiet) return 1;
                 DialogWindow.ShowModal(DialogVm.Notice(Loc.T("dialog.uninstallRunning", AppName), DialogKind.Info, AppName));
+            }
             else if (!SignalExistingInstance())
                 DialogWindow.ShowModal(DialogVm.Notice(Loc.T("dialog.alreadyRunning", AppName), DialogKind.Info, AppName));
             return 0;
         }
 
         var store = new SettingsStore();
+        var migrated = MigrateLegacyData(store);
         Logger.Initialize(store.LogDirectory);
         LogBuffer.Attach();
         var settings = store.Load();
         if (!langFromCli) Loc.SetLanguage(settings.Ui.Language);
         ThemeManager.SetSetting(settings.Ui.Theme);
         Logger.Info(Loc.T("ui.logline.started", AppName, MainViewModel.AppVersion, YesNo(isAdmin), store.DataDirectory));
+        LogMigration(migrated, store);
         if (!isAdmin) Logger.Warn(Loc.T("ui.logline.notAdmin"));
+        else InstallInfo.SyncDisplayVersion(ExePath, AppInfo.Version);
 
         using var wd = new Watchdog(store, settings, ExePath, isAdmin);
         wd.EnsureInitialConfig();
 
         if (opts.Uninstall)
         {
-            int code = RunUninstall(wd, isAdmin);
+            int code = RunUninstall(wd, isAdmin, opts.Quiet);
             _mutex?.ReleaseMutex();
             return code;
         }
 
         var ctrl = new AppController(wd, store, settings, opts, isAdmin, ExePath);
-        ctrl.StartListeners(_showEvent, _internetOn, _internetOff);
+        ctrl.StartListeners(_showEvent, _internetOn, _internetOff, _exitKeep, _exitStop);
         if (opts.UpdatedFrom != null)
         {
             Logger.Info(Loc.T("ui.logline.updated", opts.UpdatedFrom, MainViewModel.AppVersion));
@@ -218,8 +244,9 @@ internal static class Program
     {
         try
         {
-            var path = new SettingsStore().ConfigPath;
-            if (!File.Exists(path)) return null;
+            var store = new SettingsStore();
+            var path = File.Exists(store.ConfigPath) ? store.ConfigPath : OldConfigPath(store);
+            if (path == null) return null;
             using var doc = JsonDocument.Parse(File.ReadAllText(path, Encoding.UTF8),
                 new JsonDocumentOptions { AllowTrailingCommas = true, CommentHandling = JsonCommentHandling.Skip });
             if (doc.RootElement.ValueKind != JsonValueKind.Object) return null;
@@ -236,6 +263,49 @@ internal static class Program
             return null;
         }
         static string? Str(JsonElement? e) => e is { ValueKind: JsonValueKind.String } v ? v.GetString() : null;
+    }
+
+    // ------------------------------------------------------------------ data folder
+
+    private static string ExeDir => Path.GetDirectoryName(ExePath) ?? AppContext.BaseDirectory;
+
+    /// <summary>config.json of a version up to 1.0.2 that has not been moved to the data folder yet, or null.</summary>
+    private static string? OldConfigPath(SettingsStore store) =>
+        LegacyDataMigration.FindOldConfig(store.DataDirectory, LegacyDataMigration.Candidates(ExeDir, RecordedExePaths));
+
+    private static List<string>? _recordedExePaths;
+
+    /// <summary>Where the autostart task and the firewall rules say the exe is (looked up once, and only when needed).</summary>
+    private static IEnumerable<string> RecordedExePaths()
+    {
+        if (_recordedExePaths == null)
+        {
+            var paths = new List<string>();
+            try { if (AutoStartManager.IsEnabled(out var p) && p != null) paths.Add(p); } catch { }
+            try { paths.AddRange(FirewallManager.RecordedExePaths()); } catch { }
+            _recordedExePaths = paths;
+        }
+        return _recordedExePaths;
+    }
+
+    /// <summary>Moves what an older version left next to the exe into the data folder. Call before the logger starts.</summary>
+    private static LegacyDataMigration.Result? MigrateLegacyData(SettingsStore store)
+    {
+        try
+        {
+            IReadOnlyList<string> driverFiles;
+            try { driverFiles = DriverPackage.FromAssembly(typeof(Program).Assembly).Manifest.Files.Select(f => f.Name).ToList(); }
+            catch { driverFiles = Array.Empty<string>(); }
+            return LegacyDataMigration.Run(store.DataDirectory, LegacyDataMigration.Candidates(ExeDir, RecordedExePaths), driverFiles);
+        }
+        catch { return null; }
+    }
+
+    private static void LogMigration(LegacyDataMigration.Result? r, SettingsStore store)
+    {
+        if (r == null) return;
+        Logger.Info(Loc.T("settings.migrated", r.From, store.DataDirectory, r.Moved));
+        foreach (var f in r.Failed) Logger.Warn(Loc.T("settings.migrateFailed", f, r.From));
     }
 
     // ------------------------------------------------------------------ single instance
@@ -262,6 +332,12 @@ internal static class Program
                     _internetOff = new EventWaitHandle(false, EventResetMode.AutoReset, scope + InternetOffEvent);
                 }
                 catch { _internetOn = _internetOff = null; }
+                try
+                {
+                    _exitKeep = new EventWaitHandle(false, EventResetMode.AutoReset, scope + ExitKeepEvent);
+                    _exitStop = new EventWaitHandle(false, EventResetMode.AutoReset, scope + ExitStopEvent);
+                }
+                catch { _exitKeep = _exitStop = null; }
                 return true;
             }
             catch (UnauthorizedAccessException)
@@ -275,13 +351,16 @@ internal static class Program
         return true;
     }
 
-    private static bool SignalExistingInstance()
+    private static bool SignalExistingInstance() => SetEvent(ShowEvent);
+
+    /// <summary>Sets a named event of the running instance; false when it does not exist (or cannot be opened).</summary>
+    private static bool SetEvent(string name)
     {
         foreach (var scope in new[] { "Global", "Local" })
         {
             try
             {
-                if (EventWaitHandle.TryOpenExisting(scope + ShowEvent, out var ev))
+                if (EventWaitHandle.TryOpenExisting(scope + name, out var ev))
                 {
                     using (ev) ev.Set();
                     return true;
@@ -393,6 +472,43 @@ internal static class Program
         return failures.Count == 0 ? 0 : 1;
     }
 
+    /// <summary>--ui-demo [scene]: mock data only, like --ui-screenshot; no single-instance lock, so it runs beside the real app.</summary>
+    private static int RunUiDemo(AppOptions opts)
+    {
+        try
+        {
+            ScreenshotRenderer.RunDemo(new AirBridgeApplication(ThemeManager.SystemSetting), opts.UiDemoScene, ExePath);
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            WriteLine(ex.Message);
+            return 1;
+        }
+    }
+
+    /// <summary>--write-icon path: app.ico from <see cref="Ui.Controls.AppLogo"/> (run after changing the logo, then rebuild).</summary>
+    private static int RunWriteIcon(string path)
+    {
+        if (path.Length == 0)
+        {
+            WriteLine("--write-icon <path to .ico>");
+            return 2;
+        }
+        try
+        {
+            path = Path.GetFullPath(path);
+            Ui.Controls.AppLogo.WriteIco(path);
+            WriteLine(path);
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            WriteLine(ex.Message);
+            return 1;
+        }
+    }
+
     /// <summary>--driver-status: read-only, no administrator needed. Exit code 0 = installed, 1 = plugged in without a driver, 2 = not plugged in, 3 = query failed.</summary>
     private static int RunDriverStatus(bool isAdmin)
     {
@@ -431,7 +547,9 @@ internal static class Program
     private static int RunInstallDriver(bool isAdmin)
     {
         var store = new SettingsStore();
+        var migrated = IsInstanceRunning() ? null : MigrateLegacyData(store);
         try { Logger.Initialize(store.LogDirectory); } catch { }
+        LogMigration(migrated, store);
         WriteLine(Loc.T("cli.installTitle", AppName, DriverStrings.BundledVersion));
         if (!isAdmin)
         {
@@ -483,7 +601,9 @@ internal static class Program
             return 1;
         }
         var store = new SettingsStore();
+        var migrated = MigrateLegacyData(store); // nothing runs (checked above)
         try { Logger.Initialize(store.LogDirectory); } catch { }
+        LogMigration(migrated, store);
         var s = store.Load();
         s.Internet.Allow = allow;
         store.Save(s);
@@ -507,8 +627,10 @@ internal static class Program
     private static int RunDiag(AppOptions opts)
     {
         var store = new SettingsStore();
+        // read-only: a config.json that an older version left next to the exe is read where it is
+        var old = File.Exists(store.ConfigPath) ? null : OldConfigPath(store);
         AppSettings? s = null;
-        try { s = store.Load(); } catch { }
+        try { s = (old == null ? store : new SettingsStore(Path.GetDirectoryName(old))).Load(); } catch { }
         var text = Diagnostics.Collect(s, ExePath);
         var path = opts.DiagPath ?? Path.Combine(store.DataDirectory, $"diag-{DateTime.Now:yyyyMMdd-HHmmss}.txt");
         try { File.WriteAllText(path, text, new UTF8Encoding(true)); } catch { }
@@ -516,17 +638,36 @@ internal static class Program
         return 0;
     }
 
-    private static int RunUninstall(Watchdog wd, bool isAdmin)
+    /// <summary>--uninstall [--quiet]: undoes the system changes. Quiet (the uninstaller): no dialogs, the results are logged.</summary>
+    private static int RunUninstall(Watchdog wd, bool isAdmin, bool quiet)
     {
         if (!isAdmin)
         {
-            DialogWindow.ShowModal(DialogVm.Notice(Loc.T("dialog.uninstallNeedAdmin"), DialogKind.Warning, AppName));
+            if (quiet) Logger.Warn(Loc.T("dialog.uninstallNeedAdmin"));
+            else DialogWindow.ShowModal(DialogVm.Notice(Loc.T("dialog.uninstallNeedAdmin"), DialogKind.Warning, AppName));
             return 1;
         }
-        if (DialogWindow.ShowModal(DialogVm.Confirm(Loc.T("ui.maint.revertConfirm"), DialogKind.Warning, AppName)) != DialogVm.Yes) return 0;
+        if (!quiet && DialogWindow.ShowModal(DialogVm.Confirm(Loc.T("ui.maint.revertConfirm"), DialogKind.Warning, AppName)) != DialogVm.Yes) return 0;
         var report = Task.Run(() => wd.RevertAsync()).GetAwaiter().GetResult();
-        DialogWindow.ShowModal(DialogVm.Report(Loc.T("ui.maint.revertResult"), report, Loc.T("ui.maint.revertFooter")));
+        if (!quiet) DialogWindow.ShowModal(DialogVm.Report(Loc.T("ui.maint.revertResult"), report, Loc.T("ui.maint.revertFooter", wd.DataDirectory)));
         return 0;
+    }
+
+    /// <summary>
+    /// --exit [stop]: asks the running instance to exit and waits until it has (the setup and the uninstaller use it).
+    /// Exit code 0 = not running or exited, 1 = running but cannot be asked (a version up to 1.0.2), 2 = still running.
+    /// </summary>
+    private static int RunExit(bool stopHotspot)
+    {
+        if (!IsInstanceRunning()) return 0;
+        if (!SetEvent(stopHotspot ? ExitStopEvent : ExitKeepEvent)) return 1;
+        var sw = Stopwatch.StartNew();
+        while (sw.Elapsed < TimeSpan.FromSeconds(30))
+        {
+            Thread.Sleep(250);
+            if (!IsInstanceRunning()) return 0;
+        }
+        return 2;
     }
 
     private static int _crashShown;

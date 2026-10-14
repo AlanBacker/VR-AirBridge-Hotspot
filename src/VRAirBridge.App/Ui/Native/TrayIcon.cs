@@ -9,8 +9,8 @@ namespace VRAirBridge.App.Ui.Native;
 
 /// <summary>
 /// Notification-area icon through Shell_NotifyIcon (no WinForms). Owns a hidden tool window that receives the
-/// icon's mouse messages and re-adds the icon when Explorer restarts. The icon is a coloured dot with a small
-/// Wi-Fi mark, drawn with WPF and converted to an HICON.
+/// icon's mouse messages and re-adds the icon when Explorer restarts. The icon is the app logo with a status dot,
+/// drawn with WPF and converted to an HICON.
 /// </summary>
 internal sealed class TrayIcon : IDisposable
 {
@@ -178,10 +178,10 @@ internal sealed class TrayIcon : IDisposable
         return h;
     }
 
-    /// <summary>Filled dot with a white ring and a small Wi-Fi mark, as an HICON (same drawing as before).</summary>
+    /// <summary>The app logo with a status dot in the given colour, as an HICON.</summary>
     internal static IntPtr CreateDotIcon(Color color, int size)
     {
-        var bmp = RenderDot(color, size);
+        var bmp = Controls.AppLogo.Render(size, color);
         var conv = new FormatConvertedBitmap(bmp, PixelFormats.Bgra32, null, 0);
         int stride = size * 4;
         var px = new byte[stride * size];
@@ -199,47 +199,6 @@ internal sealed class TrayIcon : IDisposable
             DeleteObject(hColor);
             DeleteObject(hMask);
         }
-    }
-
-    /// <summary>The tray dot as a WPF bitmap (also used by the screenshot renderer).</summary>
-    internal static BitmapSource RenderDot(Color color, int size)
-    {
-        var dv = new DrawingVisual();
-        using (var g = dv.RenderOpen())
-        {
-            double pad = Math.Max(1, size * 0.06);
-            double d = size - 2 * pad - 0.5;
-            var center = new Point(pad + d / 2, pad + d / 2);
-            var ring = new Pen(Brushes.White, Math.Max(1, size / 12.0));
-            ring.Freeze();
-            var fill = new SolidColorBrush(color);
-            fill.Freeze();
-            g.DrawEllipse(fill, ring, center, d / 2, d / 2);
-
-            double cx = size / 2.0, cy = size * 0.66;
-            var pen = new Pen(Brushes.White, Math.Max(1.2, size * 0.09)) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round };
-            pen.Freeze();
-            foreach (var k in new[] { 0.17, 0.31 })
-            {
-                double r = size * k;
-                var a = new Point(cx + r * Math.Cos(225 * Math.PI / 180), cy + r * Math.Sin(225 * Math.PI / 180));
-                var b = new Point(cx + r * Math.Cos(315 * Math.PI / 180), cy + r * Math.Sin(315 * Math.PI / 180));
-                var geo = new StreamGeometry();
-                using (var ctx = geo.Open())
-                {
-                    ctx.BeginFigure(a, false, false);
-                    ctx.ArcTo(b, new Size(r, r), 0, false, SweepDirection.Clockwise, true, false);
-                }
-                geo.Freeze();
-                g.DrawGeometry(null, pen, geo);
-            }
-            double dot = Math.Max(1.5, size * 0.1);
-            g.DrawEllipse(Brushes.White, null, new Point(cx, cy), dot / 2, dot / 2);
-        }
-        var rtb = new RenderTargetBitmap(size, size, 96, 96, PixelFormats.Pbgra32);
-        rtb.Render(dv);
-        rtb.Freeze();
-        return rtb;
     }
 
     private static string Clip(string s, int max) => s.Length > max ? s[..max] : s;

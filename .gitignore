@@ -19,7 +19,7 @@ dist/
 # Local QA reports.
 TEST-REPORT-*.md
 
-# Data the application writes next to the exe (or to %ProgramData%\VRAirBridgeHotspot).
+# Data that versions up to 1.0.2 wrote next to the exe (newer ones use %LocalAppData%\VRAirBridgeHotspot).
 # config.json holds the hotspot password in plain text: never commit it.
 config.json
 config.json.bad-*

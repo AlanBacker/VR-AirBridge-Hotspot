@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Media;
 
 namespace VRAirBridge.App.Ui.Controls;
@@ -25,6 +26,7 @@ public sealed class FillLastPanel : Panel
     public double LastMinHeight { get => (double)GetValue(LastMinHeightProperty); set => SetValue(LastMinHeightProperty, value); }
 
     private ScrollViewer? _sv;
+    private StableScrollViewer? _stable;
     // The ScrollContentPresenter between this panel and the ScrollViewer: its arranged height IS the viewport height,
     // already up to date when its SizeChanged fires. (ScrollViewer.ViewportHeight is only refreshed on LayoutUpdated,
     // after the re-measure we trigger, so reading it left the panel one resize behind: shrinking the window by 120 DIP
@@ -32,6 +34,8 @@ public sealed class FillLastPanel : Panel
     private FrameworkElement? _viewport;
     private FrameworkElement? _watched;
     private double _lastH;
+    // Viewport height the last measure was based on: a viewport SizeChanged that matches it needs no second pass.
+    private double _usedVh = double.NaN;
 
     public FillLastPanel()
     {
@@ -50,6 +54,8 @@ public sealed class FillLastPanel : Panel
         }
         _sv = p as ScrollViewer;
         if (_sv == null) _viewport = null;
+        _stable = _sv as StableScrollViewer;
+        if (_stable != null) _stable.ViewportHeightChanging += OnViewportHeightChanging;
         _watched = _viewport ?? _sv;
         if (_watched != null) _watched.SizeChanged += OnViewportChanged;
         InvalidateMeasure();
@@ -57,15 +63,26 @@ public sealed class FillLastPanel : Panel
 
     private void Unhook()
     {
+        if (_stable != null) _stable.ViewportHeightChanging -= OnViewportHeightChanging;
+        _stable = null;
         if (_watched != null) _watched.SizeChanged -= OnViewportChanged;
         _watched = null;
         _viewport = null;
         _sv = null;
     }
 
+    private void OnViewportHeightChanging()
+    {
+        // The viewer is measuring and its content is next: dirty everything from here up to it, so that this very
+        // pass re-measures the panel (an element in between whose own constraint did not change would stop it).
+        for (DependencyObject? d = this; d != null && !ReferenceEquals(d, _sv); d = VisualTreeHelper.GetParent(d))
+            (d as UIElement)?.InvalidateMeasure();
+    }
+
     private void OnViewportChanged(object sender, SizeChangedEventArgs e)
     {
-        if (e.HeightChanged) InvalidateMeasure();
+        // Inside a StableScrollViewer the measure already used this height (no second layout pass while resizing).
+        if (e.HeightChanged && !(Math.Abs(e.NewSize.Height - _usedVh) <= 0.5)) InvalidateMeasure();
     }
 
     private List<UIElement> Kids() => InternalChildren.Cast<UIElement>().Where(c => c.Visibility != Visibility.Collapsed).ToList();
@@ -81,8 +98,10 @@ public sealed class FillLastPanel : Panel
         if (!double.IsInfinity(available.Height)) return available.Height;
         if (_sv != null)
         {
-            double vh = _viewport is { ActualHeight: > 0 } ? _viewport.ActualHeight
+            double vh = _stable is { PendingViewportHeight: >= 0 } ? _stable.PendingViewportHeight
+                : _viewport is { ActualHeight: > 0 } ? _viewport.ActualHeight
                 : _sv.ViewportHeight > 0 ? _sv.ViewportHeight : _sv.ActualHeight;
+            _usedVh = vh;
             if (vh > 0) return Math.Max(0, vh - Margin.Top - Margin.Bottom);
         }
         return 600;
@@ -129,6 +148,111 @@ public sealed class FillLastPanel : Panel
         }
         return finalSize;
     }
+}
+
+/// <summary>
+/// ScrollViewer whose VerticalScrollBarVisibility="Auto" lays the content out once. On every measure the stock
+/// viewer hides the bar, lays the whole content out at the full width, then shows the bar and lays it all out again
+/// at the narrower width, so each step of a window resize measured the sidebar, the dashboard and every visible log
+/// line twice. This one keeps the bar as it was and measures a second time only when the content starts or stops
+/// overflowing. It also hands the new viewport height to a <see cref="FillLastPanel"/> inside it before measuring
+/// it, so the page fills the window in the same layout pass. Other values (and the horizontal bar) work as usual.
+/// </summary>
+public sealed class StableScrollViewer : ScrollViewer
+{
+    static StableScrollViewer()
+    {
+        // Auto is handled here: the base sees Visible, so it never hides and re-shows the bar by itself.
+        VerticalScrollBarVisibilityProperty.OverrideMetadata(typeof(StableScrollViewer),
+            new FrameworkPropertyMetadata(ScrollBarVisibility.Visible, null, CoerceVertical));
+    }
+
+    private ScrollBar? _bar;
+    private bool _auto;
+    /// <summary>Widest width at which the content was seen to overflow without the bar (NaN: unknown).</summary>
+    private double _overflowsAt = double.NaN;
+
+    private static object CoerceVertical(DependencyObject d, object value)
+    {
+        var sv = (StableScrollViewer)d;
+        bool auto = (ScrollBarVisibility)value == ScrollBarVisibility.Auto;
+        if (auto != sv._auto)
+        {
+            sv._auto = auto;
+            if (!auto) sv._bar?.ClearValue(VisibilityProperty);
+            else if (sv._bar != null) sv._bar.Visibility = Visibility.Collapsed;
+            sv.InvalidateMeasure();
+        }
+        return auto ? ScrollBarVisibility.Visible : value;
+    }
+
+    /// <summary>Raised while measuring, before the content is measured, when the height it can show changes.</summary>
+    internal event Action? ViewportHeightChanging;
+
+    /// <summary>Viewport height of the measure in progress (NaN while the available height is unbounded).</summary>
+    internal double PendingViewportHeight { get; private set; } = double.NaN;
+
+    public override void OnApplyTemplate()
+    {
+        base.OnApplyTemplate();
+        // with Auto, a local Visibility on the bar (over the template's Visible) decides whether it takes its column
+        _bar = GetTemplateChild("PART_VerticalScrollBar") as ScrollBar;
+        if (_auto && _bar != null) _bar.Visibility = Visibility.Collapsed;
+    }
+
+    protected override Size MeasureOverride(Size constraint)
+    {
+        double vh = double.IsInfinity(constraint.Height) ? double.NaN : Math.Max(0, constraint.Height - Padding.Top - Padding.Bottom);
+        if (!vh.Equals(PendingViewportHeight))
+        {
+            PendingViewportHeight = vh;
+            ViewportHeightChanging?.Invoke();
+        }
+        var size = base.MeasureOverride(constraint);
+        if (!_auto || _bar == null) return size;
+        if (Overflows() != BarShown)
+        {
+            // Shown -> hidden only when the content fits even at the narrower width, so the wider second pass fits
+            // too; hidden -> shown when it overflows at the full width, so the narrower pass overflows too: no flip-flop.
+            if (!BarShown) _overflowsAt = constraint.Width;
+            size = Remeasure(constraint, !BarShown);
+        }
+        else if (BarShown && NearFit() && !(constraint.Width <= _overflowsAt))
+        {
+            // Only just overflowing with the bar: like the stock Auto, no bar if the content fits at the full width.
+            size = Remeasure(constraint, false);
+            if (Overflows())
+            {
+                _overflowsAt = constraint.Width;
+                size = Remeasure(constraint, true);
+            }
+        }
+        return size;
+    }
+
+    private Size Remeasure(Size constraint, bool bar)
+    {
+        _bar!.Visibility = bar ? Visibility.Visible : Visibility.Collapsed;
+        if (VisualChildrenCount > 0 && GetVisualChild(0) is UIElement root) root.InvalidateMeasure();
+        return base.MeasureOverride(constraint);
+    }
+
+    protected override void OnScrollChanged(ScrollChangedEventArgs e)
+    {
+        base.OnScrollChanged(e);
+        // shorter content or a taller viewport may fit without the bar again
+        if (e.ExtentHeightChange < 0 || e.ViewportHeightChange > 0) _overflowsAt = double.NaN;
+        // the content grew or shrank by itself (a card expanded): the next measure picks the bar again
+        if (_auto && _bar != null && (Overflows() != BarShown || BarShown && NearFit() && double.IsNaN(_overflowsAt)))
+            InvalidateMeasure();
+    }
+
+    private bool BarShown => _bar!.Visibility == Visibility.Visible;
+
+    private bool Overflows() => ScrollInfo is { } s && s.ExtentHeight - s.ViewportHeight > 0.01;
+
+    /// <summary>Overflowing by so little that the few pixels of width the bar takes may be the reason.</summary>
+    private bool NearFit() => ScrollInfo is { } s && s.ExtentHeight - s.ViewportHeight <= Math.Min(64, s.ViewportHeight / 4);
 }
 
 /// <summary>Horizontal wrap panel with uniform gaps (buttons that wrap instead of clipping).</summary>

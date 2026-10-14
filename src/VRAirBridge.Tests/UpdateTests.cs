@@ -179,6 +179,21 @@ public class ReleaseInfoTests
         // no exe at all
         var zip = ReleaseInfo.Parse(ReleaseJson(assetName: "source.zip"));
         Assert.Null(zip.Exe);
+        // the setup is never taken as the program file
+        var setupOnly = ReleaseInfo.Parse(ReleaseJson(assetName: AppInfo.SetupName));
+        Assert.Null(setupOnly.Exe);
+    }
+
+    [Fact]
+    public void Asset_Selection_WithSetup()
+    {
+        // the setup listed first, then the portable exe: self-update takes the portable exe
+        var json = ReleaseJson().Replace("{\"name\":\"notes.txt\"",
+            "{\"name\":\"" + AppInfo.SetupName + "\",\"size\":99,\"browser_download_url\":\"https://example.com/" + AppInfo.SetupName + "\"},{\"name\":\"notes.txt\"");
+        Assert.Contains(AppInfo.SetupName, json);
+        var r = ReleaseInfo.Parse(json);
+        Assert.Equal(AppInfo.ExeName, r.Exe!.Name);
+        Assert.Equal(1234, r.Exe.Size);
     }
 
     [Theory]

@@ -492,6 +492,7 @@
     </Style>
 
     <Style TargetType="ScrollViewer">
+        <Setter Property="c:SmoothScroll.IsEnabled" Value="True" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ScrollViewer">
@@ -520,6 +521,9 @@
             </Setter.Value>
         </Setter>
     </Style>
+
+    <!-- implicit styles go by exact type: the subclass takes the same look -->
+    <Style TargetType="c:StableScrollViewer" BasedOn="{StaticResource {x:Type ScrollViewer}}" />
 
     <!-- ============================================================ tooltip -->
     <Style TargetType="ToolTip">
@@ -614,7 +618,7 @@
                                   MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}">
                                 <Border CornerRadius="8" Background="{DynamicResource B.PopupBg}" Effect="{DynamicResource E.Popup}" />
                                 <Border CornerRadius="8" BorderBrush="{DynamicResource B.CardBorder}" BorderThickness="1" Padding="4">
-                                    <ScrollViewer c:SmoothScroll.IsEnabled="True" CanContentScroll="False">
+                                    <ScrollViewer CanContentScroll="False">
                                         <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Contained" />
                                     </ScrollViewer>
                                 </Border>
@@ -747,13 +751,16 @@
         <Setter Property="Foreground" Value="{DynamicResource B.Text}" />
         <Setter Property="FocusVisualStyle" Value="{x:Null}" />
         <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
+        <!-- pixel offsets so the wheel can glide (SmoothScroll leaves item-by-item lists alone) -->
+        <Setter Property="VirtualizingPanel.ScrollUnit" Value="Pixel" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ListBox">
-                    <ScrollViewer Focusable="False" Padding="{TemplateBinding Padding}" c:SmoothScroll.IsEnabled="False"
-                                  CanContentScroll="{TemplateBinding ScrollViewer.CanContentScroll}">
+                    <!-- takes ScrollViewer.VerticalScrollBarVisibility from the list; Auto then lays the lines out once -->
+                    <c:StableScrollViewer Focusable="False" Padding="{TemplateBinding Padding}"
+                                          CanContentScroll="{TemplateBinding ScrollViewer.CanContentScroll}">
                         <ItemsPresenter />
-                    </ScrollViewer>
+                    </c:StableScrollViewer>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>

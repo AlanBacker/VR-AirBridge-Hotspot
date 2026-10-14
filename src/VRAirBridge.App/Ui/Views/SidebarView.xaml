@@ -51,7 +51,7 @@
         </StackPanel>
 
         <!-- ============================================================ sections -->
-        <ScrollViewer x:Name="Scroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
+        <c:StableScrollViewer x:Name="Scroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
             <StackPanel Margin="12,6,12,12">
                 <TextBlock Margin="2,4,2,12" Text="{Binding NoMatchText, Converter={StaticResource Disp}}" Style="{StaticResource T.Dim}"
                            Visibility="{Binding NoMatch, Converter={StaticResource BoolVis}}" />
@@ -296,6 +296,6 @@
                     </StackPanel>
                 </c:SectionCard>
             </StackPanel>
-        </ScrollViewer>
+        </c:StableScrollViewer>
     </DockPanel>
 </UserControl>

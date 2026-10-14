@@ -76,6 +76,20 @@ internal static class ScreenshotRenderer
         return (written, failures);
     }
 
+    /// <summary>
+    /// <c>--ui-demo [scene]</c>: the real window with mock data and animations on, to try scrolling, hover and dialogs by
+    /// hand. The default scene is the running hotspot with a long log. Nothing touches the system (mock view model).
+    /// </summary>
+    internal static void RunDemo(Application app, string? scene, string exePath)
+    {
+        var s = string.IsNullOrWhiteSpace(scene) || scene == "longlog" ? MockData.LongLog() : MockData.Build(scene);
+        var vm = NewVm(s, ThemeManager.SystemSetting, exePath);
+        var w = new MainWindow(vm) { Title = "VR Air Bridge Hotspot (UI demo)" };
+        app.ShutdownMode = ShutdownMode.OnMainWindowClose;
+        try { app.Run(w); }
+        finally { vm.Detach(); }
+    }
+
     private static bool Try(List<string> failures, string what, Action a)
     {
         try

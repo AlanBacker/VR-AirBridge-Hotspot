@@ -38,11 +38,13 @@ No Meta software is needed, and the PC's own Wi-Fi stays connected.
 
 ## Quick start
 
-1. Download `VRAirBridgeHotspot.exe` from [Releases](https://github.com/AlanBacker/VR-AirBridge-Hotspot/releases) into a fixed folder (single file, nothing to install). If SmartScreen appears, click **More info → Run anyway** (the exe is unsigned).
+1. Download `VRAirBridgeHotspot-Setup.exe` from [Releases](https://github.com/AlanBacker/VR-AirBridge-Hotspot/releases) and install it, or take the portable `VRAirBridgeHotspot.exe` (single file). If SmartScreen appears, click **More info → Run anyway** (both are unsigned).
 2. Run it and confirm the administrator prompt.
 3. Plug in the DWA-F18; if it has no driver, click **Install driver**.
 4. The first run sets the name `AirBridge-XXXX` and a random password. To change them, edit **Hotspot** in the sidebar and click **Save & apply**.
 5. Click **Start hotspot** and connect the headset (it gets `192.168.137.100–199`). Then pick this PC in your streaming app (Virtual Desktop, Steam Link, …).
+
+To remove it, uninstall it in **Settings → Apps**; it undoes its system changes first. With the portable exe, click **Revert / uninstall**, then delete the exe.
 
 <table>
   <tr>
@@ -61,7 +63,7 @@ No Meta software is needed, and the PC's own Wi-Fi stays connected.
 
 ## Settings
 
-Settings live in `config.json` next to the exe, and most can be changed in the app. After editing the file by hand, click **Save & apply** or restart the app.
+Settings live in `%LocalAppData%\VRAirBridgeHotspot\config.json` (logs too), and most can be changed in the app. Files that v1.0.2 and earlier kept next to the exe move there on the first start. After editing the file by hand, click **Save & apply** or restart the app.
 
 | Key | Default | Meaning |
 |---|---|---|
@@ -82,7 +84,7 @@ It is a window app: to see output and exit codes, run `start /wait VRAirBridgeHo
 
 | Option | Effect |
 |---|---|
-| `--diag [file]` | Saves diagnostics (no passwords) to a file, next to the exe by default, and exits |
+| `--diag [file]` | Saves diagnostics (no passwords) to a file, in the data folder by default, and exits |
 | `--driver-status` | Driver state; exit code 0 installed, 1 plugged in without driver, 2 not plugged in, 3 query failed |
 | `--install-driver` | Installs the bundled driver |
 | `--internet on\|off` | Allows or blocks internet for connected devices, instantly if the app is running |
@@ -103,14 +105,15 @@ It is a window app: to see output and exit codes, run `start /wait VRAirBridgeHo
 
 Everything runs locally and there is no telemetry. The app only contacts GitHub: to check for updates (can be turned off in **About**) and to download one when you click **Update now**.
 
-`config.json` stores the hotspot password in plain text, so share only the exe. Diagnostics leave out passwords but list nearby Wi-Fi names.
+`config.json` stores the hotspot password in plain text. It stays in your user profile, so the exe can be shared as is. Diagnostics leave out passwords but list nearby Wi-Fi names.
 
 ## Build
 
-Requires the .NET 9 SDK.
+Requires the .NET 9 SDK; the second line builds `dist/VRAirBridgeHotspot-Setup.exe` with [Inno Setup 6](https://jrsoftware.org/isinfo.php).
 
 ```
-dotnet publish src/VRAirBridge.App/VRAirBridge.App.csproj -c Release
+dotnet publish src/VRAirBridge.App/VRAirBridge.App.csproj -c Release -o dist
+iscc installer/VRAirBridgeHotspot.iss
 ```
 
 ## License

@@ -48,6 +48,12 @@ public sealed class Watchdog : IDisposable
     private bool _goIpFallbackDone;
     private bool? _hadDongle;
     private string? _lastDongleProblem;
+    private DateTime? _dongleSince;
+
+    // 开热点前的自动检查：Wi-Fi Direct 是否在 D-Link 上（每次插上 / 点“启动热点”最多自动挪一次）、D-Link 收信号是否正常（每次插上查一次）
+    private bool _wfdTried;
+    private bool _rxChecked;
+    private RxReport? _rx;
 
     // 驱动
     private DriverState _driver = new(DriverStateKind.DongleNotPresent);
@@ -260,7 +266,7 @@ public sealed class Watchdog : IDisposable
             else if (now >= _nextRetry)
             {
                 _lastDongleProblem = null;
-                await TryStartAsync(ct);
+                await TryStartAsync(dongle!, ct);
                 snap = _hc.GetSnapshot();
                 on = snap.State == HotspotState.On;
                 if (on) { _onSince ??= DateTime.UtcNow; _lastState = HotspotState.On; }
@@ -289,7 +295,7 @@ public sealed class Watchdog : IDisposable
         if (on && go != null && goOnDongle == false && !_wrongAdapterHandled)
         {
             _wrongAdapterHandled = true;
-            await HandleWrongAdapterAsync(go, dongle!, snap, ct);
+            await HandleWrongAdapterAsync(go, dongle!, ct);
             go = NetworkInfo.FindGoAdapter(dongle?.Mac);
             goOnDongle = go != null && dongle != null ? MacUtil.SameRadio(go.Mac, dongle.Mac) : null;
         }
@@ -395,6 +401,16 @@ public sealed class Watchdog : IDisposable
     private void TrackDongle(DongleInfo? d)
     {
         bool has = d != null;
+        if (has && _hadDongle != true)
+        {
+            // 程序启动时 D-Link 早就插着了；运行中新插上的，Wi-Fi Direct 要几秒才出来
+            _dongleSince = _hadDongle == null ? DateTime.MinValue : DateTime.UtcNow;
+            _wfdTried = false;
+            _rxChecked = false;
+            _rx = null;
+            _wrongAdapterHandled = false;
+        }
+        else if (!has) _dongleSince = null;
         if (_hadDongle == true && !has)
         {
             Logger.Error(Loc.T("watchdog.dLinkAdapterWasUnplugged"));
@@ -409,12 +425,14 @@ public sealed class Watchdog : IDisposable
         _hadDongle = has;
     }
 
-    private async Task TryStartAsync(CancellationToken ct)
+    private async Task TryStartAsync(DongleInfo dongle, CancellationToken ct)
     {
         _starting = true;
         PublishBusy(Loc.T("watchdog.startingHotspot"));
         try
         {
+            await PrepareDongleAsync(dongle, ct);
+            PublishBusy(Loc.T("watchdog.startingHotspot"));
             await _hc.StartAsync(_s, ct);
             _lastError = null;
             Logger.Ok(Loc.T("watchdog.hotspotStarted"));
@@ -439,84 +457,85 @@ public sealed class Watchdog : IDisposable
 
     // ================================================================ 热点开错网卡
 
-    private sealed record WlanAdapter(string Name, string Guid, string Mac, int State, int MediaConnectState);
-
-    private static List<WlanAdapter> WirelessAdapters()
+    /// <summary>
+    /// 开热点前的两项自动检查（都不需要用户操作）：
+    /// 1. D-Link 收信号正不正常（每次插上查一次）：比内置网卡弱很多时提示换 USB 口；
+    /// 2. Windows 有没有把 Wi-Fi Direct 交给别的无线网卡：交给了别人时热点会开在那块网卡上，自动挪到 D-Link。
+    /// </summary>
+    private async Task PrepareDongleAsync(DongleInfo dongle, CancellationToken ct)
     {
-        var list = new List<WlanAdapter>();
-        try
+        if (!_rxChecked)
         {
-            using var s = new ManagementObjectSearcher(new ManagementScope(@"\\.\root\StandardCimv2"), new ObjectQuery(
-                "SELECT Name, InterfaceGuid, PermanentAddress, State, InterfaceAdminStatus, MediaConnectState, NdisPhysicalMedium, HardwareInterface FROM MSFT_NetAdapter"));
-            foreach (ManagementBaseObject o in s.Get())
-                using (o)
-                {
-                    if (Convert.ToInt32(o["NdisPhysicalMedium"] ?? 0) != 9) continue;
-                    if (o["HardwareInterface"] is bool hw && !hw) continue;
-                    list.Add(new WlanAdapter(o["Name"] as string ?? "", o["InterfaceGuid"] as string ?? "", MacUtil.Format(o["PermanentAddress"] as string),
-                        DongleInfo.EffectiveState(o), Convert.ToInt32(o["MediaConnectState"] ?? 0)));
-                }
+            _rxChecked = true;
+            PublishBusy(Loc.T("rx.checking"));
+            try { _rx = await ReceptionCheck.RunAsync(dongle, ct); }
+            catch (Exception ex) when (ex is not OperationCanceledException) { Logger.Debug("rx check: " + ex.Message); }
+            if (_rx?.Compare.Weak == true) Raise(NotifyKind.Warning, Loc.T("rx.weakTitle"), _rx.Advice);
         }
-        catch { }
-        return list;
+
+        if (!_isAdmin || _wfdTried || WfdRole.DongleHasWfd(dongle)) return;
+        var others = WfdRole.OtherAdapters(dongle.Mac);
+        if (others.Count == 0) return;
+        if (others.All(o => WfdRole.WfdPorts(o.PnpId) == 0))
+        {
+            // 谁都没拿到：D-Link 可能刚插上、Wi-Fi Direct 还没出来，等到插上满 20 秒
+            while (!WfdRole.DongleHasWfd(dongle) && DateTime.UtcNow - (_dongleSince ?? DateTime.MinValue) < TimeSpan.FromSeconds(20))
+                await Task.Delay(1000, ct);
+            if (WfdRole.DongleHasWfd(dongle)) return;
+        }
+        Logger.Warn(Loc.T("wfd.onOtherAdapter"));
+        await MoveWfdAsync(dongle, ct);
+    }
+
+    /// <summary>把 Wi-Fi Direct 挪到 D-Link（热点必须先停掉）。失败时不再自动重试，直到 D-Link 重新插上或用户重新点“启动热点”。</summary>
+    private async Task<bool> MoveWfdAsync(DongleInfo dongle, CancellationToken ct)
+    {
+        _wfdTried = true;
+        var r = await WfdRole.MoveToDongleAsync(dongle, PublishBusy, ct);
+        if (r.Ok)
+        {
+            Logger.Ok(Loc.T("wfd.moved", r.Seconds.ToString("0")));
+            return true;
+        }
+        Logger.Error(Loc.T("wfd.moveFailed"));
+        Raise(NotifyKind.Warning, Loc.T("watchdog.hotspotNotDLink"), Loc.T("wfd.moveFailed"));
+        return false;
     }
 
     /// <summary>
-    /// 热点被 Windows 开在了别的无线网卡上：临时禁用“既不是 D-Link、也不是上网用、也没有连着 Wi-Fi”的无线网卡，
-    /// 重开热点后再启用它们。绝不动正在联网的网卡（不会断开电脑自己的 Wi-Fi）。
+    /// 热点被 Windows 开在了别的无线网卡上（例如在系统设置里开的）：停掉热点，把 Wi-Fi Direct 挪到 D-Link，再开。
+    /// D-Link 已经有 Wi-Fi Direct 时只重开一次热点。每次热点开启只处理一次，不会循环。
     /// </summary>
-    private async Task HandleWrongAdapterAsync(GoAdapterInfo go, DongleInfo dongle, HotspotSnapshot snap, CancellationToken ct)
+    private async Task HandleWrongAdapterAsync(GoAdapterInfo go, DongleInfo dongle, CancellationToken ct)
     {
         Logger.Warn(Loc.T("watchdog.hotspotStartedMacNotD", go.Description, go.Mac, dongle.Mac));
-        Raise(NotifyKind.Warning, Loc.T("watchdog.hotspotNotDLink"), Loc.T("watchdog.windowsStartedHotspotAnotherWi"));
-        var upGuid = (snap.UplinkAdapterId ?? "").Trim('{', '}');
-        var others = WirelessAdapters().Where(a =>
-            !MacUtil.SameRadio(a.Mac, dongle.Mac) &&
-            !string.Equals(a.Guid.Trim('{', '}'), upGuid, StringComparison.OrdinalIgnoreCase) &&
-            a.State != 3 && a.MediaConnectState != 1).ToList();
-        if (others.Count == 0)
+        if (!_isAdmin) return;
+        bool move = !WfdRole.DongleHasWfd(dongle);
+        if (move && _wfdTried) return;
+        _starting = true;
+        try
         {
-            Logger.Warn(Loc.T("watchdog.noOtherWiFiAdapter"));
-            try
-            {
-                await _hc.StopAsync(ct);
-                await Task.Delay(3000, ct);
-                await _hc.StartAsync(_s, ct);
-                await Task.Delay(3000, ct);
-            }
-            catch (Exception ex) { Logger.Warn(Loc.T("watchdog.failedRestartHotspot") + ex.Message); }
+            await _hc.StopAsync(ct);
+            if (move) await MoveWfdAsync(dongle, ct);
+            else await Task.Delay(3000, ct);
+            PublishBusy(Loc.T("watchdog.startingHotspot"));
+            await _hc.StartAsync(_s, ct);
+            await Task.Delay(3000, ct);
+            _beacon = null;
+            _beaconDueAt = DateTime.UtcNow.AddSeconds(8);
         }
-        else if (!_isAdmin)
+        catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
         {
-            Logger.Warn(Loc.T("watchdog.administratorRightsAreRequiredTemporarily"));
-            return;
+            Logger.Warn(Loc.T("watchdog.failedRestartHotspot") + ex.Message);
         }
-        else
+        finally
         {
-            var names = others.Select(o => o.Name).ToList();
-            Logger.Warn(Loc.T("watchdog.temporarilyDisablingOtherOfflineWi") + string.Join(", ", names));
-            try
-            {
-                await _hc.StopAsync(ct);
-                foreach (var n in names) IcsRepair.SetAdapterEnabled(n, false);
-                await Task.Delay(3000, ct);
-                await _hc.StartAsync(_s, ct);
-                await Task.Delay(3000, ct);
-            }
-            catch (Exception ex) { Logger.Warn(Loc.T("watchdog.errorWhileMovingHotspot") + ex.Message); }
-            finally
-            {
-                foreach (var n in names) IcsRepair.SetAdapterEnabled(n, true);
-                Logger.Info(Loc.T("watchdog.otherWiFiAdaptersRestored"));
-            }
+            _starting = false;
+            _busy = null;
         }
         var now = NetworkInfo.FindGoAdapter(dongle.Mac);
         if (now != null && MacUtil.SameRadio(now.Mac, dongle.Mac)) Logger.Ok(Loc.T("watchdog.fixedHotspotNowDLink"));
-        else
-        {
-            Logger.Error(Loc.T("watchdog.hotspotStillNotDLink"));
-            Raise(NotifyKind.Error, Loc.T("watchdog.hotspotNotDLink"), Loc.T("watchdog.automaticCorrectionFailedRePlug"));
-        }
+        else Logger.Error(Loc.T("watchdog.hotspotStillNotDLink"));
     }
 
     /// <summary>热点网卡一直没拿到 192.168.137.x 时，临时（重启后失效）给它加上 ICS 的网关地址。</summary>
@@ -678,6 +697,8 @@ public sealed class Watchdog : IDisposable
             hints.Add(Loc.T("watchdog.notRunningAsAdministratorBuilt"));
         if (goOnDongle == false)
             hints.Add(Loc.T("watchdog.hotspotRunningNotDLink", go?.Description));
+        if (_rx?.Compare.Weak == true)
+            hints.Add(_rx.Hint);
         if (snap.CapabilityProblem != null && snap.State != HotspotState.On)
             hints.Add(Loc.T("watchdog.systemReports") + snap.CapabilityProblem);
 
@@ -840,6 +861,7 @@ public sealed class Watchdog : IDisposable
             Channel = ChannelInfo.Last,
             Pin = _pin.Status,
             InternetAllowed = _s.Internet.Allow,
+            RxWeak = _rx?.Compare.Weak == true,
         };
         lock (_statusLock) _status = st;
         try { StatusChanged?.Invoke(st); } catch { }
@@ -858,6 +880,7 @@ public sealed class Watchdog : IDisposable
                 Hotspot = o.Hotspot, Dongle = o.Dongle, Go = o.Go, GoOnDongle = o.GoOnDongle, Beacon = o.Beacon, BeaconNote = o.BeaconNote,
                 BeaconRunning = o.BeaconRunning, Dhcp = o.Dhcp, Nat = o.Nat, UplinkName = o.UplinkName, Clients = o.Clients, Joins = o.Joins, Hints = o.Hints,
                 RetryInSeconds = o.RetryInSeconds, Driver = _driver, Channel = ChannelInfo.Last, Pin = _pin.Status, InternetAllowed = _s.Internet.Allow,
+                RxWeak = o.RxWeak,
             };
             _status = cur;
         }
@@ -889,6 +912,8 @@ public sealed class Watchdog : IDisposable
 
     public async Task StartHotspotAsync()
     {
+        // 用户重新点“启动热点”：允许再自动挪一次 Wi-Fi Direct
+        if (!DesiredOn) _wfdTried = false;
         DesiredOn = true;
         _failures = 0;
         _nextRetry = DateTime.MinValue;

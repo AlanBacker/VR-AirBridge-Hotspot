@@ -38,11 +38,13 @@ Meta のソフトウェアは不要で、PC 本体の Wi-Fi 接続もそのま�
 
 ## クイック スタート
 
-1. [Releases](https://github.com/AlanBacker/VR-AirBridge-Hotspot/releases) から `VRAirBridgeHotspot.exe` をダウンロードし、決まったフォルダーに置きます（1 ファイルのみ、インストール不要）。SmartScreen が表示されたら「詳細情報」→「実行」をクリックします（exe は未署名です）。
+1. [Releases](https://github.com/AlanBacker/VR-AirBridge-Hotspot/releases) から `VRAirBridgeHotspot-Setup.exe` をダウンロードしてインストールします。ポータブル版の `VRAirBridgeHotspot.exe`（1 ファイル）も使えます。SmartScreen が表示されたら「詳細情報」→「実行」をクリックします（どちらも未署名です）。
 2. ダブルクリックで起動し、管理者の確認で「はい」をクリックします。
 3. DWA-F18 を挿し、ドライバーがないと表示されたら「ドライバーをインストール」をクリックします。
 4. 初回起動時にホットスポット名 `AirBridge-XXXX` とランダムなパスワードが設定されます。変更するときは右側のサイドバーの「ホットスポット」で編集し、「保存して適用」をクリックします。
 5. 「ホットスポットを開始」をクリックし、ヘッドセットを接続します（アドレスは `192.168.137.100–199`）。あとはストリーミング アプリ（Virtual Desktop、Steam Link など）でこの PC を選びます。
+
+削除するときは「設定 → アプリ」からアンインストールします。先にシステムの変更を元に戻します。ポータブル版は「元に戻す / アンインストール」をクリックしてから exe を削除します。
 
 <table>
   <tr>
@@ -61,7 +63,7 @@ Meta のソフトウェアは不要で、PC 本体の Wi-Fi 接続もそのま�
 
 ## 設定
 
-設定は exe と同じフォルダーの `config.json` に保存され、ほとんどはアプリ内で変更できます。手で編集した後は「保存して適用」をクリックするか、アプリを再起動してください。
+設定は `%LocalAppData%\VRAirBridgeHotspot\config.json` に保存され（ログも同じ場所）、ほとんどはアプリ内で変更できます。v1.0.2 以前が exe の隣に置いていたファイルは、初回起動時にそこへ移動します。手で編集した後は「保存して適用」をクリックするか、アプリを再起動してください。
 
 | キー | 既定値 | 内容 |
 |---|---|---|
@@ -82,7 +84,7 @@ Meta のソフトウェアは不要で、PC 本体の Wi-Fi 接続もそのま�
 
 | オプション | 動作 |
 |---|---|
-| `--diag [ファイル]` | 診断情報（パスワードを除く）をファイル（既定は exe の隣）に保存して終了 |
+| `--diag [ファイル]` | 診断情報（パスワードを除く）をファイル（既定はデータ フォルダー）に保存して終了 |
 | `--driver-status` | ドライバーの状態。終了コード 0 インストール済み、1 接続済みだがドライバーなし、2 未接続、3 取得失敗 |
 | `--install-driver` | 内蔵ドライバーをインストール |
 | `--internet on\|off` | 接続したデバイスのインターネット アクセスを許可 / 禁止。アプリ実行中なら即時反映 |
@@ -103,14 +105,15 @@ Meta のソフトウェアは不要で、PC 本体の Wi-Fi 接続もそのま�
 
 処理はすべて PC 内で完結し、テレメトリーもありません。アプリが通信するのは GitHub だけです（更新の確認と、「今すぐ更新」をクリックしたときのダウンロード）。確認は「バージョン情報」でオフにできます。
 
-`config.json` にはホットスポットのパスワードが平文で保存されるので、共有するのは exe だけにしてください。診断情報にパスワードは含まれませんが、周辺の Wi-Fi 名は含まれます。
+`config.json` にはホットスポットのパスワードが平文で保存されます。ユーザー プロファイル内にあるので、exe はそのまま共有できます。診断情報にパスワードは含まれませんが、周辺の Wi-Fi 名は含まれます。
 
 ## ビルド
 
-.NET 9 SDK が必要です。
+.NET 9 SDK が必要です。2 行目は [Inno Setup 6](https://jrsoftware.org/isinfo.php) で `dist/VRAirBridgeHotspot-Setup.exe` を作ります。
 
 ```
-dotnet publish src/VRAirBridge.App/VRAirBridge.App.csproj -c Release
+dotnet publish src/VRAirBridge.App/VRAirBridge.App.csproj -c Release -o dist
+iscc installer/VRAirBridgeHotspot.iss
 ```
 
 ## ライセンス

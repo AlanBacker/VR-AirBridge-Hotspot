@@ -38,11 +38,13 @@
 
 ## 快速开始
 
-1. 从 [Releases](https://github.com/AlanBacker/VR-AirBridge-Hotspot/releases) 下载 `VRAirBridgeHotspot.exe`，放到固定的文件夹（单文件，无需安装）。如果出现 SmartScreen 提示，点“更多信息”→“仍要运行”（exe 没有数字签名）。
+1. 从 [Releases](https://github.com/AlanBacker/VR-AirBridge-Hotspot/releases) 下载 `VRAirBridgeHotspot-Setup.exe` 并安装，或者用便携版 `VRAirBridgeHotspot.exe`（单文件）。如果出现 SmartScreen 提示，点“更多信息”→“仍要运行”（两者都没有数字签名）。
 2. 双击运行，在管理员确认窗口里点“是”。
 3. 插上 DWA-F18；提示没有驱动时点“安装驱动”。
 4. 首次运行会自动设置热点名 `AirBridge-XXXX` 和随机密码。要修改的话，在右侧栏“热点”里改完点“保存并应用”。
 5. 点“启动热点”，让头显连上（会拿到 `192.168.137.100–199` 的地址）。然后在串流软件（Virtual Desktop、Steam Link 等）里选这台电脑。
+
+卸载：在“设置 → 应用”里卸载即可，它会先撤销对系统的改动。便携版先点“还原 / 卸载”，再删除 exe。
 
 <table>
   <tr>
@@ -61,7 +63,7 @@
 
 ## 设置
 
-设置保存在 exe 旁边的 `config.json`，大部分都能在界面里改。手动编辑后，点“保存并应用”或重启软件。
+设置保存在 `%LocalAppData%\VRAirBridgeHotspot\config.json`（日志也在这里），大部分都能在界面里改。v1.0.2 及更早版本放在 exe 旁边的文件，首次启动时会自动搬过去。手动编辑后，点“保存并应用”或重启软件。
 
 | 键 | 默认值 | 含义 |
 |---|---|---|
@@ -82,7 +84,7 @@
 
 | 参数 | 作用 |
 |---|---|
-| `--diag [文件]` | 把诊断信息（不含密码）保存到文件（默认在 exe 旁边）后退出 |
+| `--diag [文件]` | 把诊断信息（不含密码）保存到文件（默认在数据文件夹）后退出 |
 | `--driver-status` | 驱动状态；退出码 0 已安装，1 插着但没驱动，2 没插，3 查询失败 |
 | `--install-driver` | 安装内置驱动 |
 | `--internet on\|off` | 允许 / 禁止连接的设备上网；软件正在运行时立即生效 |
@@ -103,14 +105,15 @@
 
 一切都在本机完成，没有遥测。软件只会访问 GitHub：检查更新（可在“关于”里关闭），以及你点“立即更新”时下载新版本。
 
-`config.json` 里的热点密码是明文保存的，所以分享时只发 exe。诊断信息不含密码，但会列出附近的 Wi-Fi 名称。
+`config.json` 里的热点密码是明文保存的。它在你的用户目录里，不在 exe 旁边，所以 exe 可以直接分享。诊断信息不含密码，但会列出附近的 Wi-Fi 名称。
 
 ## 编译
 
-需要 .NET 9 SDK。
+需要 .NET 9 SDK；第二行用 [Inno Setup 6](https://jrsoftware.org/isinfo.php) 生成 `dist/VRAirBridgeHotspot-Setup.exe`。
 
 ```
-dotnet publish src/VRAirBridge.App/VRAirBridge.App.csproj -c Release
+dotnet publish src/VRAirBridge.App/VRAirBridge.App.csproj -c Release -o dist
+iscc installer/VRAirBridgeHotspot.iss
 ```
 
 ## 许可

@@ -28,7 +28,7 @@ internal static class MockData
     private const string DemoPassword = "demo-pass-2468";
     private const string UplinkSsid = "HomeWiFi-5G";
 
-    internal static readonly string[] SceneNames = { "start", "stopped", "running", "lanonly", "pin", "error", "update", "qr" };
+    internal static readonly string[] SceneNames = { "start", "stopped", "running", "lanonly", "pin", "error", "update", "qr", "usbport" };
 
     internal static MockScene Build(string name) => name switch
     {
@@ -40,6 +40,7 @@ internal static class MockData
         "error" => Error(),
         "update" => Update(),
         "qr" => Qr(),
+        "usbport" => UsbPort(),
         _ => throw new ArgumentOutOfRangeException(nameof(name), name, null),
     };
 
@@ -121,6 +122,16 @@ internal static class MockData
         });
     }
 
+    /// <summary>The D-Link is on a crowded USB hub and hears far less than the built-in Wi-Fi: the hint plus the "plug it in here" picture.</summary>
+    private static MockScene UsbPort()
+    {
+        var s = Settings(setupDone: true);
+        var rx = new RxReport(new RxCompare(3, 44, -88, -44), "Intel(R) Wi-Fi 6E AX211 160MHz", true,
+            new[] { "USB Keyboard", "USB Microphone", "Portable Drive" });
+        var st = RunningStatus(s, Array.Empty<ClientRow>(), goChannel: 149, pin: null, lanOnly: false, rx: rx);
+        return new MockScene("usbport", s, st, true, Log(running: true));
+    }
+
     /// <summary>An update is offered, and a phone failed the password check (it never got in, so Windows does not list it).</summary>
     private static MockScene Update()
     {
@@ -198,7 +209,7 @@ internal static class MockData
     }
 
     private static AppStatus RunningStatus(AppSettings s, IReadOnlyList<ClientRow> clients, int goChannel, PinStatus? pin, bool lanOnly,
-        IReadOnlyList<ClientJoinRecord>? joins = null)
+        IReadOnlyList<ClientJoinRecord>? joins = null, RxReport? rx = null)
     {
         int online = clients.Count(c => c.Online);
         var snap = Snapshot(HotspotState.On, online);
@@ -231,6 +242,8 @@ internal static class MockData
             Channel = Channel(goChannel, uplinkChannel: 36),
             Pin = pin ?? new PinStatus(PinPhase.Off, null, null, ChannelStrings.PinOff),
             InternetAllowed = !lanOnly,
+            Hints = rx != null ? new[] { rx.Hint } : Array.Empty<string>(),
+            RxWeak = rx?.Compare.Weak == true,
         };
     }
 

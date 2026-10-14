@@ -67,7 +67,9 @@ public sealed record ReleaseInfo(
                     .Select(ParseAsset)
                     .OfType<ReleaseAsset>()
                     .ToList();
-                var exes = list.Where(a => a.Name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)).ToList();
+                // the setup is never the program file, even when it is the only exe
+                var exes = list.Where(a => a.Name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)
+                                           && !a.Name.Equals(AppInfo.SetupName, StringComparison.OrdinalIgnoreCase)).ToList();
                 exe = list.FirstOrDefault(a => a.Name.Equals(exeName, StringComparison.OrdinalIgnoreCase))
                       ?? (exes.Count == 1 ? exes[0] : null);
             }

@@ -231,7 +231,8 @@ internal sealed class AppController : IUiHost
     // ================================================================== other instances
 
     /// <summary>Background threads that forward "show window" and "--internet on|off" from a second instance.</summary>
-    internal void StartListeners(EventWaitHandle? show, EventWaitHandle? internetOn, EventWaitHandle? internetOff)
+    internal void StartListeners(EventWaitHandle? show, EventWaitHandle? internetOn, EventWaitHandle? internetOff,
+        EventWaitHandle? exitKeep, EventWaitHandle? exitStop)
     {
         if (show != null)
         {
@@ -266,6 +267,21 @@ internal sealed class AppController : IUiHost
                     catch { return; }
                 }
             }) { IsBackground = true, Name = "InternetListener" }.Start();
+        }
+        if (exitKeep != null && exitStop != null)
+        {
+            // "--exit [stop]" (setup / uninstaller): exit without asking
+            new Thread(() =>
+            {
+                try
+                {
+                    int i = WaitHandle.WaitAny(new WaitHandle[] { exitKeep, exitStop });
+                    if (_exiting) return;
+                    bool stop = i == 1;
+                    _ui.BeginInvoke(() => _ = ExitAsync(stopHotspot: stop, ask: false));
+                }
+                catch { }
+            }) { IsBackground = true, Name = "ExitListener" }.Start();
         }
     }
 

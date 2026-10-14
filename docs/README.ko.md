@@ -38,11 +38,13 @@ Meta 소프트웨어가 필요 없고, PC 자체의 Wi-Fi 연결도 그대로 �
 
 ## 빠른 시작
 
-1. [Releases](https://github.com/AlanBacker/VR-AirBridge-Hotspot/releases)에서 `VRAirBridgeHotspot.exe`를 내려받아 고정된 폴더에 둡니다(파일 하나, 설치 불필요). SmartScreen 창이 뜨면 '추가 정보' → '실행'을 클릭합니다(서명되지 않은 exe).
+1. [Releases](https://github.com/AlanBacker/VR-AirBridge-Hotspot/releases)에서 `VRAirBridgeHotspot-Setup.exe`를 내려받아 설치하거나, 포터블 `VRAirBridgeHotspot.exe`(파일 하나)를 사용합니다. SmartScreen 창이 뜨면 '추가 정보' → '실행'을 클릭합니다(둘 다 서명되지 않음).
 2. 더블클릭해 실행하고 관리자 확인 창에서 '예'를 클릭합니다.
 3. DWA-F18을 꽂고, 드라이버가 없다고 나오면 '드라이버 설치'를 클릭합니다.
 4. 처음 실행하면 핫스팟 이름 `AirBridge-XXXX`와 임의 비밀번호가 설정됩니다. 바꾸려면 오른쪽 사이드바의 '핫스팟'에서 수정하고 '저장 및 적용'을 클릭합니다.
 5. '핫스팟 시작'을 클릭하고 헤드셋을 연결합니다(주소는 `192.168.137.100–199`). 그다음 스트리밍 앱(Virtual Desktop, Steam Link 등)에서 이 PC를 선택합니다.
+
+제거하려면 '설정 → 앱'에서 제거하세요. 먼저 시스템 변경을 되돌립니다. 포터블 버전은 '되돌리기 / 제거'를 클릭한 뒤 exe를 삭제합니다.
 
 <table>
   <tr>
@@ -61,7 +63,7 @@ Meta 소프트웨어가 필요 없고, PC 자체의 Wi-Fi 연결도 그대로 �
 
 ## 설정
 
-설정은 exe 옆의 `config.json`에 저장되며, 대부분 앱에서 바꿀 수 있습니다. 파일을 직접 편집한 뒤에는 '저장 및 적용'을 클릭하거나 앱을 다시 시작하세요.
+설정은 `%LocalAppData%\VRAirBridgeHotspot\config.json`에 저장되며(로그도 같은 곳), 대부분 앱에서 바꿀 수 있습니다. v1.0.2 이하가 exe 옆에 두던 파일은 처음 시작할 때 그곳으로 옮겨집니다. 파일을 직접 편집한 뒤에는 '저장 및 적용'을 클릭하거나 앱을 다시 시작하세요.
 
 | 키 | 기본값 | 의미 |
 |---|---|---|
@@ -82,7 +84,7 @@ Meta 소프트웨어가 필요 없고, PC 자체의 Wi-Fi 연결도 그대로 �
 
 | 옵션 | 동작 |
 |---|---|
-| `--diag [파일]` | 진단 정보(비밀번호 제외)를 파일(기본: exe 옆)에 저장하고 종료 |
+| `--diag [파일]` | 진단 정보(비밀번호 제외)를 파일(기본: 데이터 폴더)에 저장하고 종료 |
 | `--driver-status` | 드라이버 상태. 종료 코드 0 설치됨, 1 꽂혀 있으나 드라이버 없음, 2 꽂혀 있지 않음, 3 조회 실패 |
 | `--install-driver` | 내장 드라이버 설치 |
 | `--internet on\|off` | 연결된 장치의 인터넷 접속 허용 / 차단. 앱이 실행 중이면 즉시 적용 |
@@ -103,14 +105,15 @@ Meta 소프트웨어가 필요 없고, PC 자체의 Wi-Fi 연결도 그대로 �
 
 모든 처리는 PC 안에서 이뤄지며 원격 분석은 없습니다. 앱은 GitHub에만 접속합니다(업데이트 확인, '지금 업데이트'를 눌렀을 때의 다운로드). 업데이트 확인은 '정보'에서 끌 수 있습니다.
 
-`config.json`에는 핫스팟 비밀번호가 평문으로 저장되므로 공유할 때는 exe만 보내세요. 진단 정보에는 비밀번호가 없지만 주변 Wi-Fi 이름은 들어 있습니다.
+`config.json`에는 핫스팟 비밀번호가 평문으로 저장됩니다. 사용자 프로필 안에 있으므로 exe는 그대로 공유해도 됩니다. 진단 정보에는 비밀번호가 없지만 주변 Wi-Fi 이름은 들어 있습니다.
 
 ## 빌드
 
-.NET 9 SDK가 필요합니다.
+.NET 9 SDK가 필요합니다. 두 번째 줄은 [Inno Setup 6](https://jrsoftware.org/isinfo.php)으로 `dist/VRAirBridgeHotspot-Setup.exe`를 만듭니다.
 
 ```
-dotnet publish src/VRAirBridge.App/VRAirBridge.App.csproj -c Release
+dotnet publish src/VRAirBridge.App/VRAirBridge.App.csproj -c Release -o dist
+iscc installer/VRAirBridgeHotspot.iss
 ```
 
 ## 라이선스

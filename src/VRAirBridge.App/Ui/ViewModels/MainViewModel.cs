@@ -549,7 +549,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     public string VersionText => AppVersion;
     public string RepoText => RepoUrl.Replace("https://", "");
-    public string DataDirectoryText => _mock ? @"C:\Tools\VRAirBridgeHotspot" : _store?.DataDirectory ?? _wd?.DataDirectory ?? "—";
+    public string DataDirectoryText => _mock ? @"C:\Users\Player\AppData\Local\VRAirBridgeHotspot" : _store?.DataDirectory ?? _wd?.DataDirectory ?? "—";
     public string BundledDriverText => Loc.T("common.nameParen", DriverStrings.BundledVersion, DriverStrings.BundledDate);
 
     // ================================================================== start page

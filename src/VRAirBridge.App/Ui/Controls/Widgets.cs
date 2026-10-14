@@ -371,8 +371,11 @@ public static class Btn
 }
 
 /// <summary>
-/// Smooth mouse-wheel scrolling for a ScrollViewer (exponential approach, speed 18) that leaves the wheel
-/// to inner scrollable lists while they can still scroll in that direction.
+/// Smooth mouse-wheel scrolling for a ScrollViewer, as in the reference: every notch moves a target by three lines
+/// (the Windows wheel setting) and the offset glides there with an exponential approach (speed 18). The wheel is
+/// left to an inner list while it can still scroll that way, then passes to the outer one. Dragging the scrollbar,
+/// a click, a key or a jump made by code stops the glide where it is. Enabled for every ScrollViewer by the
+/// implicit style; text boxes and item-by-item lists keep the normal wheel.
 /// </summary>
 public static class SmoothScroll
 {
@@ -385,9 +388,15 @@ public static class SmoothScroll
     public static bool GetIsEnabled(DependencyObject o) => (bool)o.GetValue(IsEnabledProperty);
     public static void SetIsEnabled(DependencyObject o, bool v) => o.SetValue(IsEnabledProperty, v);
 
+    private const double Speed = 18;
+    private const double LinePixels = 16;
+    // A glide step lands within this many DIPs of where it was put; more means someone else moved the offset.
+    private const double ExternalMove = 8;
+
     private sealed class ScrollState
     {
         public double Target;
+        public double LastSet;
         public bool Running;
         public TimeSpan Last;
         public EventHandler? Tick;
@@ -396,9 +405,28 @@ public static class SmoothScroll
     private static void OnChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
         if (d is not ScrollViewer sv) return;
-        if ((bool)e.NewValue) sv.PreviewMouseWheel += OnWheel;
-        else sv.PreviewMouseWheel -= OnWheel;
+        if ((bool)e.NewValue)
+        {
+            sv.PreviewMouseWheel += OnWheel;
+            sv.PreviewMouseDown += OnInterrupt;
+            sv.PreviewKeyDown += OnInterrupt;
+            sv.Unloaded += OnInterrupt;
+        }
+        else
+        {
+            sv.PreviewMouseWheel -= OnWheel;
+            sv.PreviewMouseDown -= OnInterrupt;
+            sv.PreviewKeyDown -= OnInterrupt;
+            sv.Unloaded -= OnInterrupt;
+            Stop(sv);
+        }
     }
+
+    /// <summary>True when this ScrollViewer should keep the normal wheel: text boxes, and lists that scroll item by item
+    /// (their offset is an item index, not DIPs).</summary>
+    private static bool KeepsNormalWheel(ScrollViewer sv) =>
+        sv.TemplatedParent is TextBoxBase
+        || sv.CanContentScroll && (sv.TemplatedParent is not ItemsControl ic || VirtualizingPanel.GetScrollUnit(ic) != ScrollUnit.Pixel);
 
     private static bool InnerCanScroll(ScrollViewer outer, DependencyObject? src, int delta)
     {
@@ -406,8 +434,9 @@ public static class SmoothScroll
         {
             if (src is ScrollViewer inner && inner.ScrollableHeight > 0)
             {
-                if (delta > 0 && inner.VerticalOffset > 0) return true;
-                if (delta < 0 && inner.VerticalOffset < inner.ScrollableHeight - 0.5) return true;
+                double at = Running(inner, out var t) ? t : inner.VerticalOffset;
+                if (delta > 0 && at > 0.5) return true;
+                if (delta < 0 && at < inner.ScrollableHeight - 0.5) return true;
             }
             if (src is Popup or ComboBox { IsDropDownOpen: true }) return true;
             src = src is Visual or System.Windows.Media.Media3D.Visual3D ? VisualTreeHelper.GetParent(src) : LogicalTreeHelper.GetParent(src);
@@ -415,17 +444,39 @@ public static class SmoothScroll
         return false;
     }
 
+    private static bool Running(ScrollViewer sv, out double target)
+    {
+        var st = (ScrollState?)sv.GetValue(StateProperty);
+        target = st?.Target ?? 0;
+        return st is { Running: true };
+    }
+
+    private static void OnInterrupt(object sender, EventArgs e)
+    {
+        if (sender is ScrollViewer sv) Stop(sv);
+    }
+
+    private static void Stop(ScrollViewer sv)
+    {
+        var st = (ScrollState?)sv.GetValue(StateProperty);
+        if (st is not { Running: true }) return;
+        CompositionTarget.Rendering -= st.Tick;
+        st.Running = false;
+    }
+
     private static void OnWheel(object sender, MouseWheelEventArgs e)
     {
         if (e.Handled || sender is not ScrollViewer sv) return;
+        if ((Keyboard.Modifiers & (ModifierKeys.Control | ModifierKeys.Alt)) != 0) return;
         if (InnerCanScroll(sv, e.OriginalSource as DependencyObject, e.Delta)) return;
-        if (sv.ScrollableHeight <= 0) return;
+        if (sv.ScrollableHeight <= 0 || KeepsNormalWheel(sv)) return;
         e.Handled = true;
         var st = (ScrollState?)sv.GetValue(StateProperty);
         if (st == null) { st = new ScrollState(); sv.SetValue(StateProperty, st); }
         if (!st.Running) st.Target = sv.VerticalOffset;
-        double step = e.Delta / 120.0 * 72;
-        st.Target = Math.Clamp(st.Target - step, 0, sv.ScrollableHeight);
+        int lines = SystemParameters.WheelScrollLines;
+        double notch = lines > 0 ? lines * LinePixels : sv.ViewportHeight;
+        st.Target = Math.Clamp(st.Target - e.Delta / 120.0 * notch, 0, sv.ScrollableHeight);
         if (!Motion.Enabled)
         {
             sv.ScrollToVerticalOffset(st.Target);
@@ -434,20 +485,24 @@ public static class SmoothScroll
         if (st.Running) return;
         st.Running = true;
         st.Last = TimeSpan.Zero;
+        st.LastSet = sv.VerticalOffset;
         st.Tick = (_, args) =>
         {
+            if (Math.Abs(sv.VerticalOffset - st.LastSet) > ExternalMove)
+            {
+                Stop(sv); // the scrollbar or code moved it: stay there
+                return;
+            }
             var now = args is RenderingEventArgs re ? re.RenderingTime : TimeSpan.Zero;
+            if (now == st.Last && now != TimeSpan.Zero) return; // Rendering can fire more than once per frame
             double dt = st.Last == TimeSpan.Zero ? 1.0 / 60 : Math.Clamp((now - st.Last).TotalSeconds, 0, 0.05);
             st.Last = now;
             st.Target = Math.Clamp(st.Target, 0, sv.ScrollableHeight);
-            double v = Motion.Approach(sv.VerticalOffset, st.Target, 18, dt);
-            if (Math.Abs(v - st.Target) < 0.5) v = st.Target;
+            double v = Motion.Approach(sv.VerticalOffset, st.Target, Speed, dt);
+            if (Math.Abs(v - st.Target) < 0.3) v = st.Target;
+            st.LastSet = v;
             sv.ScrollToVerticalOffset(v);
-            if (v == st.Target)
-            {
-                CompositionTarget.Rendering -= st.Tick;
-                st.Running = false;
-            }
+            if (v == st.Target) Stop(sv);
         };
         CompositionTarget.Rendering += st.Tick;
     }
