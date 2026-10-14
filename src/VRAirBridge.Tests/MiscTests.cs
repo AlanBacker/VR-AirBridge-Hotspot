@@ -246,14 +246,16 @@ public class LoggerTests
     [Fact]
     public void Secrets_AreMasked()
     {
-        var seen = new List<string>();
-        void H(LogEntry e) => seen.Add(e.Message);
+        // other test classes log in parallel through the same static logger: keep only this test's line
+        var tag = Guid.NewGuid().ToString("N");
+        var seen = new System.Collections.Concurrent.ConcurrentQueue<string>();
+        void H(LogEntry e) { if (e.Message.Contains(tag)) seen.Enqueue(e.Message); }
         Logger.EntryWritten += H;
         try
         {
             Logger.RegisterSecret("Sup3rS3cret!");
-            Logger.Info("password is Sup3rS3cret! ok");
-            Assert.Contains(seen, m => m == "password is ****** ok");
+            Logger.Info("password is Sup3rS3cret! ok " + tag);
+            Assert.Contains(seen, m => m == "password is ****** ok " + tag);
             Assert.DoesNotContain(seen, m => m.Contains("Sup3rS3cret!"));
         }
         finally
