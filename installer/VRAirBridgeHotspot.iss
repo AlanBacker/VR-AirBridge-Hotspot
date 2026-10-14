@@ -1,4 +1,5 @@
-﻿; VR Air Bridge Hotspot setup (Inno Setup 6.5 or newer, which ships the Simplified Chinese translation).
+﻿; VR Air Bridge Hotspot setup (Inno Setup 6.5 or newer). The zh-CN, ja and ko messages are kept in Languages\ next to
+; this script: not every Inno Setup install has them (the GitHub runner's does not).
 ;
 ;   dotnet publish src\VRAirBridge.App\VRAirBridge.App.csproj -c Release -o dist
 ;   iscc /DAppVersion=1.0.3 installer\VRAirBridgeHotspot.iss      -> dist\VRAirBridgeHotspot-Setup.exe
@@ -49,9 +50,9 @@ ShowLanguageDialog=auto
 
 [Languages]
 Name: "en"; MessagesFile: "compiler:Default.isl"
-Name: "zhcn"; MessagesFile: "compiler:Languages\ChineseSimplified.isl"
-Name: "ja"; MessagesFile: "compiler:Languages\Japanese.isl"
-Name: "ko"; MessagesFile: "compiler:Languages\Korean.isl"
+Name: "zhcn"; MessagesFile: "Languages\ChineseSimplified.isl"
+Name: "ja"; MessagesFile: "Languages\Japanese.isl"
+Name: "ko"; MessagesFile: "Languages\Korean.isl"
 
 [CustomMessages]
 en.AppRunning=VR Air Bridge Hotspot is running and could not be closed automatically.%n%nRight-click its tray icon and choose "Exit (keep the hotspot on)", then click Back and Next to try again.

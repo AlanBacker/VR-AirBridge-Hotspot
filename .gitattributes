@@ -14,3 +14,6 @@
 
 # Bundled driver: byte-exact (SHA-256 in driver-manifest.json, signed by the .cat), no line-ending conversion.
 src/VRAirBridge.App/driver/** -text
+
+# Inno Setup translations: kept exactly as Inno Setup ships them.
+installer/Languages/** -text
