@@ -26,7 +26,7 @@
     <ScrollViewer x:Name="PageScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
         <!-- LastMinHeight: small enough that every dashboard state fits the default 1200x780 window without the page
              scrolling (checked by the layout pass of ui-screenshot); below that the page scrolls instead. -->
-        <c:FillLastPanel Margin="16,14,16,14" Gap="12" LastMinHeight="150">
+        <c:FillLastPanel Margin="16,14,16,14" Gap="12" LastMinHeight="112">
 
             <!-- ======================================================== hotspot + channel -->
             <c:AdaptiveGrid MinColumnWidth="340" MaxColumns="2" Gap="12">
@@ -143,6 +143,8 @@
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="{Binding DevicesSummary}" Style="{StaticResource T.Dim}" VerticalAlignment="Center" Margin="0,0,8,0"
                                    TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" MaxWidth="320" />
+                        <Button x:Name="QrButton" Margin="0,0,4,0" Style="{StaticResource SmallBtn}" c:Btn.Icon="{StaticResource I.qr-code}"
+                                Content="{l:T ui.qr.button}" ToolTip="{l:T ui.qr.buttonTip}" Command="{Binding ShowQrCommand}" />
                         <Button Style="{StaticResource Btn.Icon}" Width="26" Height="26" c:Btn.Icon="{StaticResource I.copy}" c:Btn.IconSize="14"
                                 ToolTip="{l:T ui.devices.copy}" AutomationProperties.Name="{l:T ui.devices.copy}"
                                 Command="{Binding CopyDeviceCommand}"
@@ -193,6 +195,10 @@
                                     <DockPanel>
                                         <c:StatusDot DockPanel.Dock="Left" Tone="{Binding DotTone}" Radius="4" Margin="2,0,8,0" VerticalAlignment="Center" />
                                         <Grid>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                            </Grid.RowDefinitions>
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="24*" MinWidth="70" />
                                                 <ColumnDefinition Width="Auto" SharedSizeGroup="DevMac" />
@@ -205,9 +211,14 @@
                                             <TextBlock Grid.Column="1" Style="{StaticResource Cell}" Text="{Binding Mac}" FontFamily="{DynamicResource F.Mono}" FontSize="11.5" TextWrapping="NoWrap" />
                                             <TextBlock Grid.Column="2" Style="{StaticResource Cell}" Text="{Binding Ip}" TextWrapping="NoWrap"
                                                        Foreground="{Binding Tone, Converter={StaticResource ToneBrush}}" />
-                                            <TextBlock Grid.Column="3" Style="{StaticResource Cell}" Text="{Binding State, Converter={StaticResource Disp}}" />
+                                            <TextBlock Grid.Column="3" Style="{StaticResource Cell}" Text="{Binding State, Converter={StaticResource Disp}}"
+                                                       Foreground="{Binding Tone, Converter={StaticResource ToneBrush}}" />
                                             <TextBlock Grid.Column="4" Style="{StaticResource Cell}" Text="{Binding LastSeen}" Foreground="{DynamicResource B.TextDim}" TextWrapping="NoWrap" />
                                             <TextBlock Grid.Column="5" Style="{StaticResource Cell}" Text="{Binding Note, Converter={StaticResource Disp}}" Foreground="{DynamicResource B.TextDim}" />
+                                            <!-- what to do about a failed join: one full-width line under the row -->
+                                            <TextBlock Grid.Row="1" Grid.ColumnSpan="6" Margin="0,2,10,1" Style="{StaticResource Cell}"
+                                                       Text="{Binding Hint, Converter={StaticResource Disp}}" Foreground="{DynamicResource B.TextDim}"
+                                                       Visibility="{Binding Hint, Converter={StaticResource EmptyVis}}" />
                                         </Grid>
                                     </DockPanel>
                                 </DataTemplate>

@@ -114,15 +114,5 @@ public class AppLocalizationTests
             .ToList();
     }
 
-    private static string FindAppDir()
-    {
-        var d = new DirectoryInfo(AppContext.BaseDirectory);
-        while (d != null)
-        {
-            var c = Path.Combine(d.FullName, "VRAirBridge.App");
-            if (File.Exists(Path.Combine(c, "VRAirBridge.App.csproj"))) return c;
-            d = d.Parent;
-        }
-        throw new DirectoryNotFoundException("VRAirBridge.App not found above " + AppContext.BaseDirectory);
-    }
+    private static string FindAppDir() => SourceTree.Find("VRAirBridge.App");
 }

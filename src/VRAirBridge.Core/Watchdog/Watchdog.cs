@@ -2,6 +2,7 @@ using System.Management;
 using System.Net;
 using Microsoft.Win32;
 using VRAirBridge.Core.Beacon;
+using VRAirBridge.Core.Clients;
 using VRAirBridge.Core.Dhcp;
 using VRAirBridge.Core.Hotspot;
 using VRAirBridge.Core.Logging;
@@ -69,6 +70,13 @@ public sealed class Watchdog : IDisposable
     }
     private readonly Dictionary<string, ClientState> _clients = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, DateTime> _hintNotified = new();
+
+    // ---- join monitor: WLAN AutoConfig events + IP evidence explain why a device could not join
+    private readonly JoinTracker _joins = new();
+    private readonly HotspotInterfaceFilter _joinFilter = new();
+    private ClientJoinMonitor? _joinMonitor;
+    private bool _joinMonitorTried;
+    private bool _joinWasOn;
 
     private AppStatus _status = new() { Headline = Loc.T("watchdog.checking") };
 
@@ -314,6 +322,10 @@ public sealed class Watchdog : IDisposable
 
         // ---- 设备列表
         var rows = UpdateClients(snap, go, now);
+
+        // ---- 加入过程诊断（密码 / 握手后断开 / 拿不到 IP / 反复重连）
+        try { TrackJoins(snap, go, dhcpSt, on, now); }
+        catch (Exception ex) { Logger.Debug("join monitor: " + ex.Message); }
 
         // ---- 提示
         var hints = BuildHints(snap, go, goOnDongle, dhcpSt, natSt, rows, now);
@@ -701,6 +713,69 @@ public sealed class Watchdog : IDisposable
         return hints;
     }
 
+    /// <summary>The devices the join monitor knows (joining, connected, failed), most recent first.</summary>
+    public IReadOnlyList<ClientJoinRecord> JoinRecords => _joins.Snapshot();
+
+    /// <summary>The join monitor's recent findings (oldest first), for the diagnostics report.</summary>
+    public IReadOnlyList<JoinFinding> JoinHistory => _joins.History();
+
+    /// <summary>Why the WLAN event monitor is not running (null = running or not started yet).</summary>
+    public string? JoinMonitorError => _joinMonitor?.Error;
+
+    private void TrackJoins(HotspotSnapshot snap, GoAdapterInfo? go, DhcpStatus dhcp, bool on, DateTime now)
+    {
+        if (on && go != null)
+        {
+            _joinFilter.Add(go.Id, go.Mac);
+            if (!_joinMonitorTried)
+            {
+                _joinMonitorTried = true;
+                var m = new ClientJoinMonitor(_joins, _joinFilter);
+                // backlog: what happened since the hotspot came up (at most 15 minutes), so joins made while the app started are explained too
+                var since = new[] { now - TimeSpan.FromMinutes(15), (_onSince ?? now) - TimeSpan.FromMinutes(1) }.Max();
+                if (m.Start(since)) { _joinMonitor = m; Logger.Debug(Loc.T("join.monitorOn")); }
+                else { Logger.Debug(Loc.T("join.monitorUnavailable", m.Error ?? "?")); m.Dispose(); }
+            }
+        }
+        if (_joinWasOn && !on) _joins.HotspotStopped(now);
+        _joinWasOn = on;
+
+        var ctx = new JoinContext
+        {
+            Dhcp = dhcp.Provider switch { DhcpProvider.Ours => JoinDhcp.Ours, DhcpProvider.Ics => JoinDhcp.Ics, _ => JoinDhcp.Other },
+            Wpa3 = _s.Auth.Contains("WPA3", StringComparison.OrdinalIgnoreCase),
+        };
+        foreach (var l in _dhcp.Leases.All()) ctx.AddLease(l.Mac, l.Ip, l.HostName, l.LastSeen, l.IsActive(now));
+        foreach (var (mac, t) in _dhcp.Traces()) ctx.AddDhcpPacket(mac, t.LastPacket);
+        if (go != null) foreach (var n in IpHelper.GetNeighbors(go.IfIndex)) ctx.AddNeighbor(n);
+        if (on)
+        {
+            ctx.Present = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var c in snap.Clients) ctx.AddPresent(c.Mac, c.HostNames.FirstOrDefault(h => !IPAddress.TryParse(h, out _)));
+        }
+        ReportJoins(_joins.Tick(now, ctx));
+    }
+
+    /// <summary>Logs every finding; notifies only for live failures the other hints do not already cover.</summary>
+    private void ReportJoins(List<JoinFinding> found)
+    {
+        foreach (var f in found)
+        {
+            var msg = f.Message;
+            if (f.IsSuccess) { Logger.Debug(msg); continue; }
+            Logger.Warn(msg);
+            if (f.FromBacklog) continue;
+            bool toast = f.Failure switch
+            {
+                JoinFailure.WrongPassword or JoinFailure.DroppedAfterAuth or JoinFailure.ReconnectLoop => true,
+                // this app's DHCP: the "no IP requests" hint already notifies
+                JoinFailure.NoIp => f.Dhcp != JoinDhcp.Ours,
+                _ => false,
+            };
+            if (toast) Raise(NotifyKind.Warning, JoinText.Title(f), msg);
+        }
+    }
+
     private void NotifyHintOnce(string key, NotifyKind kind, string title, string text)
     {
         if (_hintNotified.TryGetValue(key, out var t) && DateTime.UtcNow - t < TimeSpan.FromMinutes(10)) return;
@@ -758,6 +833,7 @@ public sealed class Watchdog : IDisposable
             Nat = nat,
             UplinkName = uplink != null ? Loc.T("common.nameParen", snap.UplinkName, uplink.Name) : snap.UplinkName,
             Clients = rows,
+            Joins = _joins.Snapshot(),
             Hints = hints,
             RetryInSeconds = retryIn,
             Driver = _driver,
@@ -780,7 +856,7 @@ public sealed class Watchdog : IDisposable
             {
                 State = OverallState.Starting, Headline = o.Headline, Detail = o.Detail, BusyText = text, DesiredOn = DesiredOn, IsAdmin = _isAdmin,
                 Hotspot = o.Hotspot, Dongle = o.Dongle, Go = o.Go, GoOnDongle = o.GoOnDongle, Beacon = o.Beacon, BeaconNote = o.BeaconNote,
-                BeaconRunning = o.BeaconRunning, Dhcp = o.Dhcp, Nat = o.Nat, UplinkName = o.UplinkName, Clients = o.Clients, Hints = o.Hints,
+                BeaconRunning = o.BeaconRunning, Dhcp = o.Dhcp, Nat = o.Nat, UplinkName = o.UplinkName, Clients = o.Clients, Joins = o.Joins, Hints = o.Hints,
                 RetryInSeconds = o.RetryInSeconds, Driver = _driver, Channel = ChannelInfo.Last, Pin = _pin.Status, InternetAllowed = _s.Internet.Allow,
             };
             _status = cur;
@@ -1008,6 +1084,7 @@ public sealed class Watchdog : IDisposable
     {
         try { _cts?.Cancel(); } catch { }
         try { if (_loop != null) await _loop.WaitAsync(TimeSpan.FromSeconds(5)); } catch { }
+        try { _joinMonitor?.Dispose(); } catch { }
         _dhcp.StopServer(Loc.T("watchdog.appExiting"));
         if (stopHotspot)
         {
@@ -1019,6 +1096,7 @@ public sealed class Watchdog : IDisposable
     public void Dispose()
     {
         try { _cts?.Cancel(); } catch { }
+        try { _joinMonitor?.Dispose(); } catch { }
         _dhcp.Dispose();
     }
 }

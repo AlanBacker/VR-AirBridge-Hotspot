@@ -7,6 +7,16 @@ public sealed record UdpListener(IPAddress Address, int Port, int Pid);
 
 public sealed record ArpEntry(int InterfaceIndex, IPAddress Address, string Mac, int Type);
 
+/// <summary>NL_NEIGHBOR_STATE (GetIpNetTable2).</summary>
+public enum NeighborState { Unreachable = 0, Incomplete = 1, Probe = 2, Delay = 3, Stale = 4, Reachable = 5, Permanent = 6 }
+
+/// <summary>One IPv4 neighbor (ARP) entry from GetIpNetTable2. Mac is "AA-BB-CC-DD-EE-FF".</summary>
+public sealed record NeighborEntry(int InterfaceIndex, IPAddress Address, string Mac, NeighborState State)
+{
+    /// <summary>Confirmed recently (Probe / Delay / Reachable) or static.</summary>
+    public bool IsFresh => State is NeighborState.Probe or NeighborState.Delay or NeighborState.Reachable or NeighborState.Permanent;
+}
+
 /// <summary>iphlpapi 封装：带进程号的 UDP 监听表（netstat -ano 等价）、ARP 表。</summary>
 public static class IpHelper
 {
@@ -22,6 +32,49 @@ public static class IpHelper
 
     [DllImport("iphlpapi.dll", SetLastError = true)]
     private static extern uint GetIpForwardTable(IntPtr pIpForwardTable, ref int pdwSize, bool bOrder);
+
+    [DllImport("iphlpapi.dll")]
+    private static extern uint GetIpNetTable2(ushort family, out IntPtr table);
+
+    [DllImport("iphlpapi.dll")]
+    private static extern void FreeMibTable(IntPtr memory);
+
+    /// <summary>
+    /// IPv4 neighbor table (GetIpNetTable2) with the neighbor state, optionally only one interface.
+    /// Unicast entries with a 6-byte MAC only (multicast / broadcast / incomplete entries are skipped).
+    /// </summary>
+    public static List<NeighborEntry> GetNeighbors(int? interfaceIndex = null)
+    {
+        var result = new List<NeighborEntry>();
+        if (GetIpNetTable2(AF_INET, out var table) != 0 || table == IntPtr.Zero) return result;
+        try
+        {
+            int n = Marshal.ReadInt32(table);
+            // MIB_IPNET_TABLE2: ULONG NumEntries, then (8-byte aligned) MIB_IPNET_ROW2[NumEntries], 88 bytes each:
+            // SOCKADDR_INET Address (28: family@0, IPv4@4) | InterfaceIndex@28 | Luid@32 | PhysicalAddress[32]@40 |
+            // PhysicalAddressLength@72 | State@76 | Flags@80 | ReachabilityTime@84
+            const int rowSize = 88;
+            IntPtr row = table + 8;
+            var phys = new byte[6];
+            for (int i = 0; i < n; i++, row += rowSize)
+            {
+                if ((ushort)Marshal.ReadInt16(row) != AF_INET) continue;
+                int ifIndex = Marshal.ReadInt32(row + 28);
+                if (interfaceIndex != null && ifIndex != interfaceIndex) continue;
+                int physLen = Marshal.ReadInt32(row + 72);
+                if (physLen != 6) continue;
+                Marshal.Copy(row + 40, phys, 0, 6);
+                if (phys.All(b => b == 0) || phys.All(b => b == 0xFF) || (phys[0] & 1) != 0) continue;
+                var addrBytes = new byte[4];
+                Marshal.Copy(row + 4, addrBytes, 0, 4);
+                if (addrBytes[0] >= 224 || addrBytes[3] == 255 || addrBytes[0] == 0) continue;
+                var state = (NeighborState)Marshal.ReadInt32(row + 76);
+                result.Add(new NeighborEntry(ifIndex, new IPAddress(addrBytes), string.Join("-", phys.Select(b => b.ToString("X2"))), state));
+            }
+        }
+        finally { FreeMibTable(table); }
+        return result;
+    }
 
     /// <summary>所有 IPv4 UDP 监听端点及其所属进程号。</summary>
     public static List<UdpListener> GetUdpListeners()

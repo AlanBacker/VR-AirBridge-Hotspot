@@ -2,6 +2,7 @@ using System.Net;
 using VRAirBridge.App.Ui.ViewModels;
 using VRAirBridge.Core;
 using VRAirBridge.Core.Beacon;
+using VRAirBridge.Core.Clients;
 using VRAirBridge.Core.Dhcp;
 using VRAirBridge.Core.Hotspot;
 using VRAirBridge.Core.Logging;
@@ -9,6 +10,7 @@ using VRAirBridge.Core.Nat;
 using VRAirBridge.Core.Net;
 using VRAirBridge.Core.Settings;
 using VRAirBridge.Core.SystemSetup;
+using VRAirBridge.Core.Update;
 
 namespace VRAirBridge.App.Ui.Services;
 
@@ -26,7 +28,7 @@ internal static class MockData
     private const string DemoPassword = "demo-pass-2468";
     private const string UplinkSsid = "HomeWiFi-5G";
 
-    internal static readonly string[] SceneNames = { "start", "stopped", "running", "lanonly", "pin", "error" };
+    internal static readonly string[] SceneNames = { "start", "stopped", "running", "lanonly", "pin", "error", "update", "qr" };
 
     internal static MockScene Build(string name) => name switch
     {
@@ -36,6 +38,8 @@ internal static class MockData
         "lanonly" => Running(lanOnly: true),
         "pin" => Pinned(),
         "error" => Error(),
+        "update" => Update(),
+        "qr" => Qr(),
         _ => throw new ArgumentOutOfRangeException(nameof(name), name, null),
     };
 
@@ -117,6 +121,38 @@ internal static class MockData
         });
     }
 
+    /// <summary>An update is offered, and a phone failed the password check (it never got in, so Windows does not list it).</summary>
+    private static MockScene Update()
+    {
+        var s = Settings(setupDone: true);
+        var now = DateTime.UtcNow;
+        var joins = new[]
+        {
+            new ClientJoinRecord("1A-6E-B5-0C-4C-34", now.AddMinutes(-1), now.AddSeconds(-50), JoinStage.Left, null, null, JoinFailure.WrongPassword, 2),
+            new ClientJoinRecord("2C-26-17-4A-9B-01", now.AddMinutes(-9), now.AddMinutes(-9), JoinStage.GotIp, "192.168.137.101", "Quest-3", null, 1),
+        };
+        var st = RunningStatus(s, Clients().Take(1).ToList(), goChannel: 149, pin: null, lanOnly: false, joins);
+        return new MockScene("update", s, st, true, Log(running: true), vm =>
+        {
+            // only "About" open, so the shot shows the banner and the update row in About together
+            foreach (var sec in vm.Sections) sec.IsExpanded = sec == vm.SecAbout;
+            vm.SetMockUpdate(DemoRelease());
+        });
+    }
+
+    /// <summary>"Join by QR" dialog over the running dashboard (demo SSID and demo password only).</summary>
+    private static MockScene Qr()
+    {
+        var scene = Running(lanOnly: false);
+        return scene with { Name = "qr", Setup = vm => _ = vm.ShowQrAsync() };
+    }
+
+    internal static ReleaseInfo DemoRelease() => new(
+        "v1.0.9", "1.0.9", "v1.0.9", "", "https://github.com/AlanBacker/VR-AirBridge-Hotspot/releases/tag/v1.0.9",
+        DateTime.UtcNow.AddHours(-3), false, false,
+        new ReleaseAsset(AppInfo.ExeName, 75_000_000, "https://github.com/AlanBacker/VR-AirBridge-Hotspot/releases/download/v1.0.9/" + AppInfo.ExeName,
+            new string('0', 64)));
+
     private static MockScene Error()
     {
         var s = Settings(setupDone: true);
@@ -161,7 +197,8 @@ internal static class MockData
         return s;
     }
 
-    private static AppStatus RunningStatus(AppSettings s, IReadOnlyList<ClientRow> clients, int goChannel, PinStatus? pin, bool lanOnly)
+    private static AppStatus RunningStatus(AppSettings s, IReadOnlyList<ClientRow> clients, int goChannel, PinStatus? pin, bool lanOnly,
+        IReadOnlyList<ClientJoinRecord>? joins = null)
     {
         int online = clients.Count(c => c.Online);
         var snap = Snapshot(HotspotState.On, online);
@@ -189,6 +226,7 @@ internal static class MockData
                 : new NatStatus(NatProvider.Ours, Loc.T("nat.winnat", "VRAirBridgeNat", "192.168.137.0/24"), true),
             UplinkName = Loc.T("common.nameParen", "Ethernet", "Realtek PCIe 2.5GbE Family Controller"),
             Clients = clients,
+            Joins = joins ?? Array.Empty<ClientJoinRecord>(),
             Driver = DriverOk(),
             Channel = Channel(goChannel, uplinkChannel: 36),
             Pin = pin ?? new PinStatus(PinPhase.Off, null, null, ChannelStrings.PinOff),
@@ -272,7 +310,7 @@ internal static class MockData
         var t = DateTime.Today.AddHours(20).AddMinutes(14);
         var list = new List<LogEntry>
         {
-            new(t, LogLevel.Info, Loc.T("ui.logline.started", Loc.T("app.name"), "1.0.0", Loc.T(admin ? "common.yes" : "common.no"), @"C:\Tools\VRAirBridgeHotspot")),
+            new(t, LogLevel.Info, Loc.T("ui.logline.started", Loc.T("app.name"), AppInfo.Version, Loc.T(admin ? "common.yes" : "common.no"), @"C:\Tools\VRAirBridgeHotspot")),
         };
         if (running)
         {

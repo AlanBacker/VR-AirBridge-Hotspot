@@ -101,8 +101,59 @@
                 </DockPanel>
             </Border>
 
+            <StackPanel Grid.Row="1">
+            <!-- ======================================================== update banner -->
+            <Border x:Name="UpdateBanner" Margin="16,10,16,0" Style="{StaticResource Callout}"
+                    Background="{Binding UpdateTone, Converter={StaticResource ToneBrush}, ConverterParameter=bg}"
+                    BorderBrush="{Binding UpdateTone, Converter={StaticResource ToneBrush}, ConverterParameter=border}"
+                    Visibility="{Binding ShowUpdateBanner, Converter={StaticResource BoolVis}}">
+                <DockPanel>
+                    <c:IconView DockPanel.Dock="Left" Size="16" Margin="0,1,10,0" VerticalAlignment="Top"
+                                Data="{Binding UpdateIcon, Converter={StaticResource IconKey}}"
+                                Foreground="{Binding UpdateTone, Converter={StaticResource ToneBrush}}" />
+                    <Button DockPanel.Dock="Right" Margin="6,0,-4,0" Width="24" Height="24" VerticalAlignment="Center"
+                            Style="{StaticResource Btn.Icon}" c:Btn.Icon="{StaticResource I.x}" ToolTip="{l:T ui.update.later}"
+                            Command="{Binding UpdateLaterCommand}"
+                            Visibility="{Binding ShowUpdateLater, Converter={StaticResource BoolVis}}" />
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0,0,0">
+                        <Button Margin="0,0,6,0" Style="{StaticResource Btn.Ghost}" Content="{l:T ui.update.skip}"
+                                ToolTip="{l:T ui.update.skipTip}" Command="{Binding UpdateSkipCommand}"
+                                Visibility="{Binding ShowUpdateSkip, Converter={StaticResource BoolVis}}" />
+                        <Button Margin="0,0,6,0" Style="{StaticResource Btn.Ghost}" Content="{l:T ui.update.notes}"
+                                c:Btn.Icon="{StaticResource I.external-link}" ToolTip="{l:T ui.update.notesTip}"
+                                Command="{Binding UpdateNotesCommand}"
+                                Visibility="{Binding ShowUpdateNotes, Converter={StaticResource BoolVis}}" />
+                        <Button Margin="0,0,6,0" Style="{StaticResource Btn.Ghost}" Content="{l:T ui.update.openPage}"
+                                c:Btn.Icon="{StaticResource I.external-link}" Command="{Binding UpdateNotesCommand}"
+                                Visibility="{Binding ShowUpdatePage, Converter={StaticResource BoolVis}}" />
+                        <Button Style="{StaticResource Btn.Accent}" Content="{Binding UpdateInstallText}"
+                                c:Btn.Icon="{StaticResource I.download}" ToolTip="{l:T ui.update.installTip}"
+                                Command="{Binding UpdateInstallCommand}"
+                                Visibility="{Binding ShowUpdateInstall, Converter={StaticResource BoolVis}}" />
+                        <Button Style="{StaticResource Btn.Ghost}" Content="{l:T ui.update.cancel}"
+                                Command="{Binding UpdateCancelCommand}"
+                                Visibility="{Binding UpdateDownloading, Converter={StaticResource BoolVis}}" />
+                    </StackPanel>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="{Binding UpdateTitle}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                        <TextBlock Margin="0,1,0,0" Text="{Binding UpdateText}" TextWrapping="Wrap" Foreground="{DynamicResource B.TextDim}" />
+                        <ProgressBar Height="4" Margin="0,7,0,1" Minimum="0" Maximum="100" Value="{Binding UpdatePercent, Mode=OneWay}"
+                                     Visibility="{Binding UpdateBusy, Converter={StaticResource BoolVis}}">
+                            <ProgressBar.Template>
+                                <ControlTemplate TargetType="ProgressBar">
+                                    <Grid>
+                                        <Border x:Name="PART_Track" CornerRadius="2" Background="{DynamicResource B.Control}" />
+                                        <Border x:Name="PART_Indicator" CornerRadius="2" HorizontalAlignment="Left" Background="{DynamicResource B.Accent}" />
+                                    </Grid>
+                                </ControlTemplate>
+                            </ProgressBar.Template>
+                        </ProgressBar>
+                    </StackPanel>
+                </DockPanel>
+            </Border>
+
             <!-- ======================================================== not-admin banner -->
-            <Border Grid.Row="1" Margin="16,10,16,0" Style="{StaticResource Callout}"
+            <Border Margin="16,10,16,0" Style="{StaticResource Callout}"
                     Visibility="{Binding ShowAdminBanner, Converter={StaticResource BoolVis}}">
                 <DockPanel>
                     <c:IconView DockPanel.Dock="Left" Size="16" Margin="0,1,10,0" VerticalAlignment="Top"
@@ -114,6 +165,7 @@
                     <TextBlock Text="{l:T ui.banner.notAdmin}" TextWrapping="Wrap" VerticalAlignment="Center" />
                 </DockPanel>
             </Border>
+            </StackPanel>
 
             <!-- ======================================================== body -->
             <Grid Grid.Row="2">

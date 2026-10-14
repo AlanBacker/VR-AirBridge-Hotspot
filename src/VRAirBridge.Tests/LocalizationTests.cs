@@ -306,17 +306,7 @@ public class NoCjkInCoreSourceTests
         Assert.DoesNotContain(lits, l => l.Contains("注释"));
     }
 
-    private static string FindCoreDir()
-    {
-        var d = new DirectoryInfo(AppContext.BaseDirectory);
-        while (d != null)
-        {
-            var c = Path.Combine(d.FullName, "VRAirBridge.Core");
-            if (File.Exists(Path.Combine(c, "VRAirBridge.Core.csproj"))) return c;
-            d = d.Parent;
-        }
-        throw new DirectoryNotFoundException("VRAirBridge.Core not found above " + AppContext.BaseDirectory);
-    }
+    private static string FindCoreDir() => SourceTree.Find("VRAirBridge.Core");
 }
 
 internal static class TextUtil

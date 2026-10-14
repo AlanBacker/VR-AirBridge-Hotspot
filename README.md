@@ -25,6 +25,8 @@ No Meta software is needed, and the PC's own Wi-Fi stays connected.
 - **Bundled driver**: *Install driver* restores the driver that Meta's uninstaller removes.
 - **Channel panel**: nearby 5 GHz networks per 80 MHz block, plus the experimental *Pin to network*.
 - **Watchdog and tray**: a dropped hotspot is restarted, and the app keeps running in the tray.
+- **Join help**: the device list says why a phone could not join (wrong password, dropped right after joining, no address). **Join by QR** shows a code to scan instead of typing the password.
+- **Updates**: checks GitHub for a new version once a day. **Update now** downloads it, verifies its SHA-256 and restarts in seconds while the hotspot stays on.
 - **One-click tools**: *One-click optimize*, *Repair network*, *Revert / uninstall*.
 - **4 languages** (English, 简体中文, 日本語, 한국어), dark and light themes.
 
@@ -51,6 +53,10 @@ No Meta software is needed, and the PC's own Wi-Fi stays connected.
     <td align="center"><img src="docs/images/pin-en-dark.png" alt="Channel panel with Pin to network"><br>Channel</td>
     <td align="center"><img src="docs/images/traymenu-en-dark.png" alt="Tray menu"><br>Tray</td>
   </tr>
+  <tr>
+    <td align="center"><img src="docs/images/qr-en-dark.png" alt="Join by QR dialog"><br>Join by QR</td>
+    <td align="center"><img src="docs/images/update-en-light.png" alt="Update banner and About section"><br>Update</td>
+  </tr>
 </table>
 
 ## Settings
@@ -68,6 +74,7 @@ Settings live in `config.json` next to the exe, and most can be changed in the a
 | `nat.*` | `auto`, `VRAirBridgeNat` | NAT mode (`auto` / `off`) and WinNAT name |
 | `ui.language` | `auto` | `en`, `zh-CN`, `ja`, `ko`; `auto` follows Windows |
 | `ui.theme` | `system` | `dark`, `light`; `system` follows Windows |
+| `update.autoCheck` | `true` | `false` = no automatic update check (**Check for updates** in About still works) |
 
 ## Command line
 
@@ -85,6 +92,7 @@ It is a window app: to see output and exit codes, run `start /wait VRAirBridgeHo
 ## Troubleshooting
 
 - **Headset gets 169.254.x.x**: click **Repair network** (it handles the Hyper-V *Default Switch*); a third-party firewall such as Kaspersky must trust the hotspot network.
+- **iPhone says "Unable to join"**: read the hint in the device list first. Usually it helps to tap *Forget This Network* on the iPhone and join again with **Join by QR**. If it still drops at once, turn off *Private Wi-Fi Address* for this network or try 2.4 GHz.
 - **Hotspot on the wrong adapter**: the app detects it by MAC address and moves it to the DWA-F18 without touching the adapter that keeps the PC online.
 - **Not full speed (2.4 GHz or 20 MHz)**: set **Band** to 5 GHz, run **One-click optimize**, replug the dongle and start again.
 - **Driver gone after uninstalling Meta software**: click **Install driver**.
@@ -93,7 +101,7 @@ It is a window app: to see output and exit codes, run `start /wait VRAirBridgeHo
 
 ## Privacy
 
-Everything runs locally. There is no telemetry, and the app itself never connects to the internet.
+Everything runs locally and there is no telemetry. The app only contacts GitHub: to check for updates (can be turned off in **About**) and to download one when you click **Update now**.
 
 `config.json` stores the hotspot password in plain text, so share only the exe. Diagnostics leave out passwords but list nearby Wi-Fi names.
 

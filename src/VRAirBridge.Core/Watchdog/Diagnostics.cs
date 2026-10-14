@@ -1,5 +1,6 @@
 using System.Text;
 using VRAirBridge.Core.Beacon;
+using VRAirBridge.Core.Clients;
 using VRAirBridge.Core.Dhcp;
 using VRAirBridge.Core.Hotspot;
 using VRAirBridge.Core.Nat;
@@ -25,7 +26,7 @@ public static class Diagnostics
         }
 
         L(Loc.T("diag.vrAirBridgeHotspotDiagnostics", DateTime.Now));
-        L(Loc.T("diag.appVersionWindowsAdministrator", typeof(Diagnostics).Assembly.GetName().Version, Environment.OSVersion.Version, (AdminUtil.IsAdministrator() ? Loc.T("common.yes") : Loc.T("common.no"))));
+        L(Loc.T("diag.appVersionWindowsAdministrator", AppInfo.Version, Environment.OSVersion.Version, (AdminUtil.IsAdministrator() ? Loc.T("common.yes") : Loc.T("common.no"))));
         L("");
 
         DongleInfo? dongle = null;
@@ -88,6 +89,27 @@ public static class Diagnostics
             L($"  MAC: {go.Mac}  ifIndex: {go.IfIndex}  IP: {go.Ip}/{(go.Mask != null ? NetworkInfo.PrefixLength(go.Mask) : 0)}");
             L(Loc.T("diag.hotspotDLink", (dongle == null ? Loc.T("diag.noDLink") : MacUtil.SameRadio(go.Mac, dongle.Mac) ? Loc.T("common.yes") : Loc.T("common.no"))));
             L(Loc.T("diag.ipv4Forwarding", YesNo(NatManager.GetForwarding(go.IfIndex))));
+        });
+        L("");
+
+        Try("WLAN log", () =>
+        {
+            // who tried to join and where it stopped (wrong password / dropped / no IP), from the WLAN AutoConfig log
+            const int hours = 12;
+            L(Loc.T("join.diagTitle", hours));
+            var evs = ClientJoinMonitor.ReadRecent(TimeSpan.FromHours(hours), out var err);
+            if (err != null) { L("  " + Loc.T("join.monitorUnavailable", err)); return; }
+            var filter = new HotspotInterfaceFilter { AnyWifiDirect = true };
+            if (go != null) filter.Add(go.Id, go.Mac);
+            var (findings, _) = ClientJoinMonitor.Replay(evs, filter, DateTime.UtcNow);
+            if (findings.Count == 0) L(Loc.T("join.diagNone"));
+            foreach (var f in findings.TakeLast(25)) L("  " + JoinText.Describe(f));
+            var timeline = ClientJoinMonitor.Timeline(evs, filter, 60);
+            if (timeline.Count > 0)
+            {
+                L("  --");
+                foreach (var line in timeline) L("  " + line);
+            }
         });
         L("");
 

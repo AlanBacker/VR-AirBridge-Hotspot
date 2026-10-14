@@ -245,6 +245,27 @@
                                 <ColumnDefinition Width="42*" />
                                 <ColumnDefinition Width="58*" />
                             </Grid.ColumnDefinitions>
+                            <TextBlock Margin="0,0,10,0" Text="{l:T ui.about.updates}" Foreground="{DynamicResource B.TextDim}" TextWrapping="Wrap" />
+                            <StackPanel Grid.Column="1">
+                                <TextBlock Text="{Binding UpdateStatusText}" TextWrapping="Wrap"
+                                           Foreground="{Binding UpdateStatusTone, Converter={StaticResource ToneBrush}}" />
+                                <Button Margin="0,6,0,0" HorizontalAlignment="Left" Style="{StaticResource SmallBtn}"
+                                        Content="{Binding CheckUpdatesText}" c:Btn.Icon="{StaticResource I.refresh-cw}"
+                                        Command="{Binding CheckUpdatesCommand}" IsEnabled="{Binding CanCheckUpdates}" />
+                            </StackPanel>
+                        </Grid>
+                        <CheckBox Margin="0,5,0,3" Style="{StaticResource Switch}" IsChecked="{Binding AutoCheckUpdates}"
+                                  ToolTip="{l:T ui.update.autoCheckTip}" AutomationProperties.Name="{l:T ui.update.autoCheck}">
+                            <DockPanel HorizontalAlignment="Left">
+                                <c:IconView DockPanel.Dock="Right" Style="{StaticResource HelpIcon}" VerticalAlignment="Center" ToolTip="{l:T ui.update.autoCheckTip}" />
+                                <TextBlock Text="{l:T ui.update.autoCheck}" TextWrapping="Wrap" />
+                            </DockPanel>
+                        </CheckBox>
+                        <Grid Margin="0,3">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="42*" />
+                                <ColumnDefinition Width="58*" />
+                            </Grid.ColumnDefinitions>
                             <TextBlock Margin="0,0,10,0" Text="{l:T ui.drv.bundled}" Foreground="{DynamicResource B.TextDim}" TextWrapping="Wrap" />
                             <TextBlock Grid.Column="1" Text="{Binding BundledDriverText, Converter={StaticResource Disp}}" TextWrapping="Wrap" />
                         </Grid>

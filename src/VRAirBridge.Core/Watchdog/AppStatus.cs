@@ -1,4 +1,5 @@
 using VRAirBridge.Core.Beacon;
+using VRAirBridge.Core.Clients;
 using VRAirBridge.Core.Dhcp;
 using VRAirBridge.Core.Hotspot;
 using VRAirBridge.Core.Nat;
@@ -37,6 +38,8 @@ public sealed class AppStatus
     public NatStatus Nat { get; init; } = new(NatProvider.None, Loc.T("status.notRunning"), false);
     public string? UplinkName { get; init; }
     public IReadOnlyList<ClientRow> Clients { get; init; } = Array.Empty<ClientRow>();
+    /// <summary>Join monitor: every device seen joining (stage, last failure), most recent first. Includes devices that never got connected.</summary>
+    public IReadOnlyList<ClientJoinRecord> Joins { get; init; } = Array.Empty<ClientJoinRecord>();
     public IReadOnlyList<string> Hints { get; init; } = Array.Empty<string>();
     public int? RetryInSeconds { get; init; }
     /// <summary>D-Link 驱动状态（每个周期用已查到的信息快速判断）。</summary>

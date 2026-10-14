@@ -116,11 +116,13 @@ public sealed class DeviceRowVm
     public string State { get; init; } = "";
     public string LastSeen { get; init; } = "";
     public string Note { get; init; } = "";
+    /// <summary>What to do about a failed join (shown on a line of its own under the row); empty = none.</summary>
+    public string Hint { get; init; } = "";
     public bool Online { get; init; }
     public Tone Tone { get; init; }
-    public Tone DotTone => Online ? (Tone == Tone.Warn ? Tone.Warn : Tone.Good) : Tone.Dim;
+    public Tone DotTone => Tone == Tone.Bad ? Tone.Bad : Online ? (Tone == Tone.Warn ? Tone.Warn : Tone.Good) : Tone.Dim;
 
-    public string CopyText => string.Join("\t", new[] { Name, Mac, Ip, State, LastSeen, Note }.Where(s => s.Length > 0));
+    public string CopyText => string.Join("\t", new[] { Name, Mac, Ip, State, LastSeen, Note, Hint }.Where(s => s.Length > 0));
     public override string ToString() => string.Join("  ", new[] { Name, Ip, State }.Where(s => s.Length > 0));
 }
 

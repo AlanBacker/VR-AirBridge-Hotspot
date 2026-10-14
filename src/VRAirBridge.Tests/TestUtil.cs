@@ -74,3 +74,29 @@ internal static class EngineFactory
         return new DhcpEngine(cfg, store ?? new DhcpLeaseStore(null), clock.Get) { Synchronous = true };
     }
 }
+
+/// <summary>Finds a project folder in the source tree (tests may run from a short temp output dir).</summary>
+internal static class SourceTree
+{
+    public static string Find(string project) => Find(project, AppContext.BaseDirectory, Here());
+
+    internal static string Find(string project, string baseDir, string? thisFile)
+    {
+        for (var d = new DirectoryInfo(baseDir); d != null; d = d.Parent)
+        {
+            var c = Path.Combine(d.FullName, project);
+            if (File.Exists(Path.Combine(c, project + ".csproj"))) return c;
+        }
+        // fallback: this source file lives in src/VRAirBridge.Tests, so the project is a sibling
+        var testsDir = Path.GetDirectoryName(thisFile ?? "");
+        var src = string.IsNullOrEmpty(testsDir) ? null : Path.GetDirectoryName(testsDir);
+        if (src != null)
+        {
+            var c = Path.Combine(src, project);
+            if (File.Exists(Path.Combine(c, project + ".csproj"))) return c;
+        }
+        throw new DirectoryNotFoundException(project + " not found above " + baseDir);
+    }
+
+    private static string? Here([System.Runtime.CompilerServices.CallerFilePath] string? path = null) => path;
+}

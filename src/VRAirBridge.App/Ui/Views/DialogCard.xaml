@@ -32,6 +32,41 @@
                     <StackPanel>
                         <TextBlock Text="{Binding Message, Converter={StaticResource Disp}}" TextWrapping="Wrap" LineHeight="19"
                                    Visibility="{Binding HasMessage, Converter={StaticResource BoolVis}}" />
+                        <!-- Join by QR: the code on white in both themes (scanners need the contrast), name, masked password -->
+                        <StackPanel Margin="0,14,0,0" HorizontalAlignment="Center"
+                                    Visibility="{Binding HasQr, Converter={StaticResource BoolVis}}">
+                            <Border HorizontalAlignment="Center" Background="White" CornerRadius="8" Padding="4"
+                                    BorderThickness="1" BorderBrush="{DynamicResource B.CardBorder}">
+                                <Image Source="{Binding Qr.Image}" Width="{Binding Qr.ImageSize}" Height="{Binding Qr.ImageSize}"
+                                       Stretch="Fill" RenderOptions.BitmapScalingMode="NearestNeighbor" SnapsToDevicePixels="True"
+                                       AutomationProperties.Name="{l:T ui.qr.button}" />
+                            </Border>
+                            <Grid Margin="0,12,0,0" HorizontalAlignment="Center">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <TextBlock Margin="0,0,12,0" VerticalAlignment="Center" Text="{l:T ui.qr.ssid}" Foreground="{DynamicResource B.TextDim}" />
+                                <TextBlock Grid.Column="1" Grid.ColumnSpan="2" MaxWidth="320" VerticalAlignment="Center" TextWrapping="Wrap"
+                                           FontWeight="SemiBold" Text="{Binding Qr.Ssid}" />
+                                <TextBlock Grid.Row="1" Margin="0,6,12,0" VerticalAlignment="Center" Text="{l:T ui.qr.password}"
+                                           Foreground="{DynamicResource B.TextDim}"
+                                           Visibility="{Binding Qr.HasPassword, Converter={StaticResource BoolVis}}" />
+                                <TextBlock Grid.Row="1" Grid.Column="1" Margin="0,6,0,0" VerticalAlignment="Center" FontFamily="{DynamicResource F.Mono}"
+                                           Text="{Binding Qr.PasswordText}"
+                                           Visibility="{Binding Qr.HasPassword, Converter={StaticResource BoolVis}}" />
+                                <Button Grid.Row="1" Grid.Column="2" Margin="6,6,0,0" Width="26" Height="26" Style="{StaticResource Btn.Icon}"
+                                        c:Btn.IconSize="14" c:Btn.Icon="{Binding Qr.ToggleIcon, Converter={StaticResource IconKey}}"
+                                        ToolTip="{Binding Qr.ToggleTip}" AutomationProperties.Name="{Binding Qr.ToggleTip}"
+                                        Command="{Binding Qr.ToggleCommand}"
+                                        Visibility="{Binding Qr.HasPassword, Converter={StaticResource BoolVis}}" />
+                            </Grid>
+                        </StackPanel>
                         <TextBox Style="{StaticResource Box.ReadOnly}" Margin="0,8,0,0" MaxHeight="300"
                                  FontFamily="{DynamicResource F.Mono}"
                                  Text="{Binding LinesText, Mode=OneWay}"

@@ -57,6 +57,17 @@ public sealed class UiSettings
     public bool SetupDone { get; set; }
 }
 
+/// <summary>Update check against the GitHub releases of the app.</summary>
+public sealed class UpdateSettings
+{
+    /// <summary>Check for a new version shortly after start and then once a day.</summary>
+    public bool AutoCheck { get; set; } = true;
+    /// <summary>When the last check finished (successfully or not), UTC.</summary>
+    public DateTime? LastCheckUtc { get; set; }
+    /// <summary>"1.0.3": the user clicked "Skip this version" for it; newer versions are offered again.</summary>
+    public string SkippedVersion { get; set; } = "";
+}
+
 /// <summary>记录本软件对系统做过的改动，供“还原”使用。</summary>
 public sealed class RevertState
 {
@@ -96,6 +107,7 @@ public sealed class AppSettings
     public ChannelSettings Channel { get; set; } = new();
     public RevertState Revert { get; set; } = new();
     public UiSettings Ui { get; set; } = new();
+    public UpdateSettings Update { get; set; } = new();
     public string Notes { get; set; } =
         Loc.T("settings.notes");
 
@@ -198,6 +210,8 @@ public sealed class SettingsStore
             s.Channel ??= new ChannelSettings();
             s.Channel.PinSsid ??= "";
             s.Revert ??= new RevertState();
+            s.Update ??= new UpdateSettings();
+            s.Update.SkippedVersion ??= "";
             s.Ui ??= new UiSettings();
             if (string.IsNullOrWhiteSpace(s.Ui.Language)) s.Ui.Language = "auto";
             if (string.IsNullOrWhiteSpace(s.Ui.Theme)) s.Ui.Theme = "system";

@@ -25,6 +25,8 @@
 - **内置驱动**：Meta 的卸载程序会删掉网卡驱动，点“安装驱动”即可装回。
 - **信道面板**：按 80MHz 块列出附近的 5GHz Wi-Fi，另有实验功能“钉住到网络”。
 - **看门狗和托盘**：热点掉线自动重开，关掉窗口后在托盘里继续运行。
+- **连接诊断**：设备列表会说明手机为什么连不上（密码错误、连上即断、拿不到地址）。“扫码连接”显示二维码，手机扫一下就能加入，不用手输密码。
+- **自动更新**：每天检查一次 GitHub 上的新版本。点“立即更新”会下载并校验 SHA-256，几秒内重启，热点保持开启。
 - **一键工具**：一键优化、修复网络、还原 / 卸载。
 - **4 种界面语言**（English、简体中文、日本語、한국어），深色 / 浅色主题。
 
@@ -51,6 +53,10 @@
     <td align="center"><img src="images/zh-CN/pin-zh-CN-dark.png" alt="信道卡片和“钉住到网络”"><br>信道</td>
     <td align="center"><img src="images/zh-CN/traymenu-zh-CN-dark.png" alt="托盘菜单"><br>托盘</td>
   </tr>
+  <tr>
+    <td align="center"><img src="images/zh-CN/qr-zh-CN-dark.png" alt="“扫码连接”对话框"><br>扫码连接</td>
+    <td align="center"><img src="images/zh-CN/update-zh-CN-light.png" alt="更新横幅和“关于”"><br>更新</td>
+  </tr>
 </table>
 
 ## 设置
@@ -68,6 +74,7 @@
 | `nat.*` | `auto`，`VRAirBridgeNat` | NAT 模式（`auto` / `off`）和 WinNAT 名称 |
 | `ui.language` | `auto` | `en` / `zh-CN` / `ja` / `ko`；`auto` 跟随 Windows |
 | `ui.theme` | `system` | `dark` / `light`；`system` 跟随 Windows |
+| `update.autoCheck` | `true` | `false` = 不自动检查更新（“关于”里的“检查更新”仍可用） |
 
 ## 命令行
 
@@ -85,6 +92,7 @@
 ## 常见问题
 
 - **头显拿到 169.254.x.x**：点“修复网络”（会处理 Hyper-V 的 Default Switch）；卡巴斯基等第三方防火墙需要把热点网络设为受信任。
+- **iPhone 显示“无法加入”**：先看设备列表里的提示。通常在 iPhone 上“忽略此网络”，再用“扫码连接”重新加入即可。如果仍然连上就断，关闭该网络的“私有无线局域网地址”，或改用 2.4 GHz 试试。
 - **热点开在了别的网卡上**：软件按 MAC 地址识别后会自动挪到 DWA-F18，不会动电脑正在上网的网卡。
 - **不是满血（2.4 GHz 或 20 MHz）**：“频段”选 5 GHz，做一次“一键优化”，重新插拔网卡后再启动。
 - **卸载 Meta 软件后驱动没了**：点“安装驱动”。
@@ -93,7 +101,7 @@
 
 ## 隐私
 
-一切都在本机完成。没有遥测，软件本身从不联网。
+一切都在本机完成，没有遥测。软件只会访问 GitHub：检查更新（可在“关于”里关闭），以及你点“立即更新”时下载新版本。
 
 `config.json` 里的热点密码是明文保存的，所以分享时只发 exe。诊断信息不含密码，但会列出附近的 Wi-Fi 名称。
 

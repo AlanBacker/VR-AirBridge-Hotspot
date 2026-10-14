@@ -65,6 +65,9 @@ public sealed class DialogVm : ObservableObject
     public bool HasLines => Lines is { Count: > 0 };
     public string? Footer { get; private init; }
     public string? Footnote { get; init; }
+    /// <summary>Wi-Fi QR code shown under the message ("Join by QR"); its password is never copied.</summary>
+    public QrJoinVm? Qr { get; init; }
+    public bool HasQr => Qr != null;
     public DialogKind Kind { get; }
     public string CancelResult { get; }
     public ObservableCollection<DialogButtonVm> Buttons { get; }

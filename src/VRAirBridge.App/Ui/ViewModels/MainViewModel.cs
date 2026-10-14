@@ -93,7 +93,7 @@ public sealed partial class MainViewModel : ObservableObject
         SecDriver = new SectionVm("driver", new[] { "ui.sec.driver", "ui.drv.adapter", "ui.drv.connName", "ui.drv.driver", "ui.drv.mode", "ui.drv.status", "ui.drv.bundled", "driver.buttonInstall", "driver.buttonReinstall" });
         SecOptions = new SectionVm("options", new[] { "ui.sec.options", "ui.opt.autostart", "ui.opt.startOnLaunch", "ui.opt.tray", "ui.opt.keep", "ui.opt.appearance", "ui.opt.theme", "ui.opt.themeDark", "ui.opt.themeLight", "ui.opt.language" });
         SecMaint = new SectionVm("maint", new[] { "ui.sec.maint", "ui.maint.optimize", "ui.maint.repair", "ui.maint.beacon", "ui.maint.logs", "ui.maint.diag", "ui.maint.revert", "meta.section" });
-        SecAbout = new SectionVm("about", new[] { "ui.sec.about", "ui.about.version", "ui.about.license", "ui.about.repo", "ui.about.dataDir" });
+        SecAbout = new SectionVm("about", new[] { "ui.sec.about", "ui.about.version", "ui.about.license", "ui.about.repo", "ui.about.dataDir", "ui.about.updates", "ui.update.autoCheck", "ui.update.checkNow" });
         Sections = new ObservableCollection<SectionVm> { SecHotspot, SecNetwork, SecDriver, SecOptions, SecMaint, SecAbout };
 
         // ------------------------------------------------------------------ commands
@@ -154,6 +154,7 @@ public sealed partial class MainViewModel : ObservableObject
             ApplyStatus(_wd.Status);
             _ = SyncAutoStartAsync();
             _ = InitialScanAsync();
+            StartUpdateChecks();
         }
     }
 
@@ -200,15 +201,7 @@ public sealed partial class MainViewModel : ObservableObject
         catch (Exception ex) { Logger.Warn(Loc.T("ui.opFailed", ex.Message)); }
     }
 
-    internal static string AppVersion
-    {
-        get
-        {
-            var a = typeof(MainViewModel).Assembly;
-            var v = a.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? a.GetName().Version?.ToString() ?? "1.0.0";
-            return v.Split('+')[0];
-        }
-    }
+    internal static string AppVersion => AppInfo.Version;
 
     // ================================================================== header
 
@@ -616,6 +609,7 @@ public sealed partial class MainViewModel : ObservableObject
         _exiting = true;
         _uiBusy = true;
         _logTimer?.Stop();
+        _updateTimer?.Stop();
         Headline = Loc.T(stopHotspot ? "ui.exitingStop" : "ui.exiting");
         IsBusy = true;
         CanStart = CanStop = false;
@@ -624,6 +618,7 @@ public sealed partial class MainViewModel : ObservableObject
     internal void Detach()
     {
         _logTimer?.Stop();
+        StopUpdateChecks();
         Loc.LanguageChanged -= OnLanguageChangedAnyThread;
         ThemeManager.Changed -= OnThemeChanged;
         if (_wd != null)

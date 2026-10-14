@@ -17,6 +17,7 @@ using VRAirBridge.Core.Nat;
 using VRAirBridge.Core.Net;
 using VRAirBridge.Core.Settings;
 using VRAirBridge.Core.SystemSetup;
+using VRAirBridge.Core.Update;
 using VRAirBridge.Core.Util;
 
 namespace VRAirBridge.App;
@@ -41,6 +42,8 @@ internal sealed class AppOptions
     public bool NoElevate { get; private set; }
     /// <summary>Passed by "restart as administrator": wait for the old process to exit first.</summary>
     public int RelaunchFromPid { get; private set; }
+    /// <summary>--updated-from: started by the self-update of the given (older) version.</summary>
+    public string? UpdatedFrom { get; private set; }
     /// <summary>Print the D-Link driver status and exit (no administrator needed).</summary>
     public bool DriverStatus { get; private set; }
     /// <summary>Install the bundled driver and exit (administrator needed).</summary>
@@ -67,6 +70,7 @@ internal sealed class AppOptions
                 case "--ui-screenshot": o.UiScreenshot = true; o.UiScreenshotDir = Next(); break;
                 case "--no-elevate": o.NoElevate = true; break;
                 case "--relaunch-from": if (int.TryParse(Next(), out var pid)) o.RelaunchFromPid = pid; break;
+                case UpdateInstaller.UpdatedFromArg: o.UpdatedFrom = Next(); break;
                 case "--driver-status": o.DriverStatus = true; break;
                 case "--install-driver": o.InstallDriver = true; break;
                 case "--internet": o.Internet = Next() ?? ""; break;
@@ -126,11 +130,20 @@ internal static class Program
 
         if (opts.RelaunchFromPid > 0)
         {
+            // self-update: tell the old version that this one runs, then wait until it has exited
+            if (opts.UpdatedFrom != null) UpdateInstaller.SignalReady(opts.RelaunchFromPid);
             try { using var old = Process.GetProcessById(opts.RelaunchFromPid); old.WaitForExit(20000); } catch { }
         }
 
         // Single instance: if it is already running, bring that window up.
-        if (!AcquireSingleInstance(out bool alreadyRunning) && alreadyRunning)
+        bool acquired = AcquireSingleInstance(out bool alreadyRunning);
+        // relaunch: the previous process may still be closing, so keep trying for a while before giving up
+        for (int i = 0; !acquired && alreadyRunning && opts.RelaunchFromPid > 0 && i < 60; i++)
+        {
+            Thread.Sleep(250);
+            acquired = AcquireSingleInstance(out alreadyRunning);
+        }
+        if (!acquired && alreadyRunning)
         {
             if (opts.Uninstall)
                 DialogWindow.ShowModal(DialogVm.Notice(Loc.T("dialog.uninstallRunning", AppName), DialogKind.Info, AppName));
@@ -160,6 +173,12 @@ internal static class Program
 
         var ctrl = new AppController(wd, store, settings, opts, isAdmin, ExePath);
         ctrl.StartListeners(_showEvent, _internetOn, _internetOff);
+        if (opts.UpdatedFrom != null)
+        {
+            Logger.Info(Loc.T("ui.logline.updated", opts.UpdatedFrom, MainViewModel.AppVersion));
+            ctrl.Vm.Toasts.Show(Loc.T("ui.update.updated", AppInfo.DisplayVersion), Ui.Tone.Good);
+            _ = UpdateInstaller.CleanupLeftoversAsync(ExePath);
+        }
         wd.Start(settings.StartHotspotOnLaunch);
         app.Run();
         Logger.Info(Loc.T("ui.logline.exited"));

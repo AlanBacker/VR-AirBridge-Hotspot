@@ -1,5 +1,6 @@
 ﻿using System.Collections.ObjectModel;
 using VRAirBridge.Core;
+using VRAirBridge.Core.Clients;
 using VRAirBridge.Core.Dhcp;
 using VRAirBridge.Core.Hotspot;
 using VRAirBridge.Core.Logging;
@@ -173,7 +174,7 @@ public sealed partial class MainViewModel
         var hs = st.Hotspot;
         if (hs != null) WindowsCurrentText = Loc.T("ui.hs.windowsCurrent", hs.Ssid, hs.BandText, hs.AuthText);
 
-        UpdateClients(st.Clients);
+        UpdateClients(st.Clients, st.Joins, st.Dhcp.Provider);
         UpdateStatusBar(st);
         UpdateStartPage(st);
         _host.UpdateTray(st);
@@ -374,7 +375,7 @@ public sealed partial class MainViewModel
 
     // ================================================================== devices
 
-    private void UpdateClients(IReadOnlyList<ClientRow> rows)
+    private void UpdateClients(IReadOnlyList<ClientRow> rows, IReadOnlyList<ClientJoinRecord> joins, DhcpProvider dhcp)
     {
         int online = rows.Count(r => r.Online);
         DevicesSummary = rows.Count == 0
@@ -398,6 +399,8 @@ public sealed partial class MainViewModel
                 Tone = !r.Online ? Tone.Dim : r.Ip == null || apipa ? Tone.Warn : Tone.Normal,
             };
         }).ToList();
+        MergeJoins(list, joins, dhcp, DateTime.UtcNow);
+        if (rows.Count == 0 && list.Count > 0) DevicesSummary = Loc.T("ui.devices.online", list.Count(x => x.Online));
 
         var sig = string.Join("\n", list.Select(x => x.CopyText + "|" + x.Tone + "|" + x.Online));
         if (sig == _devicesSig) return;

@@ -60,4 +60,6 @@
     <Geometry x:Key="I.circle-alert">M2,12 A10,10 0 1 0 22,12 A10,10 0 1 0 2,12 Z M12,8 L12,12 M12,16 L12.01,16</Geometry>
     <Geometry x:Key="I.smartphone">M7,2 H17 A2,2 0 0 1 19,4 V20 A2,2 0 0 1 17,22 H7 A2,2 0 0 1 5,20 V4 A2,2 0 0 1 7,2 Z M12,18 h0.01</Geometry>
     <Geometry x:Key="I.activity">M22,12 h-2.48 a2,2 0 0 0 -1.93,1.46 l-2.35,8.36 a0.25,0.25 0 0 1 -0.48,0 L9.24,2.18 a0.25,0.25 0 0 0 -0.48,0 l-2.35,8.36 A2,2 0 0 1 4.49,12 H2</Geometry>
+    <Geometry x:Key="I.qr-code">M4,3 H7 A1,1 0 0 1 8,4 V7 A1,1 0 0 1 7,8 H4 A1,1 0 0 1 3,7 V4 A1,1 0 0 1 4,3 Z M17,3 H20 A1,1 0 0 1 21,4 V7 A1,1 0 0 1 20,8 H17 A1,1 0 0 1 16,7 V4 A1,1 0 0 1 17,3 Z M4,16 H7 A1,1 0 0 1 8,17 V20 A1,1 0 0 1 7,21 H4 A1,1 0 0 1 3,20 V17 A1,1 0 0 1 4,16 Z M21,16 h-3 a2,2 0 0 0 -2,2 v3 M21,21 v0.01 M12,7 v3 a2,2 0 0 1 -2,2 H7 M3,12 h0.01 M12,3 h0.01 M12,16 v0.01 M16,12 h1 M21,12 v0.01 M12,21 v-1</Geometry>
+    <Geometry x:Key="I.circle-arrow-up">M2,12 A10,10 0 1 0 22,12 A10,10 0 1 0 2,12 Z M16,12 l-4,-4 l-4,4 M12,16 V8</Geometry>
 </ResourceDictionary>

@@ -5,6 +5,10 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="System.Management" Version="9.0.0" />
+    <!-- WLAN AutoConfig event log (client join monitor) -->
+    <PackageReference Include="System.Diagnostics.EventLog" Version="9.0.0" />
+    <!-- Wi-Fi QR code matrix -->
+    <PackageReference Include="QRCoder" Version="1.6.0" />
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="VRAirBridge.Tests" />
