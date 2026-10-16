@@ -28,7 +28,7 @@ internal static class MockData
     private const string DemoPassword = "demo-pass-2468";
     private const string UplinkSsid = "HomeWiFi-5G";
 
-    internal static readonly string[] SceneNames = { "start", "stopped", "running", "lanonly", "pin", "error", "update", "qr", "usbport" };
+    internal static readonly string[] SceneNames = { "start", "stopped", "running", "lanonly", "pin", "error", "update", "qr", "usbport", "vpn" };
 
     internal static MockScene Build(string name) => name switch
     {
@@ -41,6 +41,7 @@ internal static class MockData
         "update" => Update(),
         "qr" => Qr(),
         "usbport" => UsbPort(),
+        "vpn" => Vpn(),
         _ => throw new ArgumentOutOfRangeException(nameof(name), name, null),
     };
 
@@ -77,7 +78,7 @@ internal static class MockData
         return new MockScene("start", s, st, true, Log(running: false));
     }
 
-    private static MockScene Stopped()
+    private static MockScene Stopped(bool admin = false)
     {
         var s = Settings(setupDone: true);
         var st = new AppStatus
@@ -85,8 +86,8 @@ internal static class MockData
             State = OverallState.Stopped,
             Headline = AppStatus.HeadlineFor(OverallState.Stopped),
             Detail = Loc.T("watchdog.clickStartHotspotTurnIt"),
-            IsAdmin = false,
-            Hints = new[] { Loc.T("watchdog.notRunningAsAdministratorBuilt") }, // what the watchdog reports when not admin
+            IsAdmin = admin,
+            Hints = admin ? Array.Empty<string>() : new[] { Loc.T("watchdog.notRunningAsAdministratorBuilt") }, // what the watchdog reports when not admin
             Hotspot = Snapshot(HotspotState.Off, 0),
             Dongle = Dongle(),
             Driver = DriverOk(),
@@ -95,7 +96,14 @@ internal static class MockData
             Channel = Channel(goChannel: null, uplinkChannel: 36),
             InternetAllowed = true,
         };
-        return new MockScene("stopped", s, st, false, Log(running: false, admin: false));
+        return new MockScene("stopped", s, st, admin, Log(running: false, admin: admin));
+    }
+
+    /// <summary>"Start hotspot" while a VPN is connected: the warning dialog over the stopped dashboard (demo adapter).</summary>
+    private static MockScene Vpn()
+    {
+        var vpn = new[] { new VpnAdapter("WindscribeWireguard", "WireGuard Tunnel", "WireGuard") };
+        return Stopped(admin: true) with { Name = "vpn", Setup = vm => _ = vm.ShowVpnWarningAsync(vpn) };
     }
 
     private static MockScene Running(bool lanOnly)

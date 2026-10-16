@@ -3,6 +3,7 @@ using System.IO;
 using VRAirBridge.Core;
 using VRAirBridge.Core.Hotspot;
 using VRAirBridge.Core.Logging;
+using VRAirBridge.Core.Net;
 using VRAirBridge.Core.Settings;
 using VRAirBridge.Core.SystemSetup;
 
@@ -49,7 +50,43 @@ public sealed partial class MainViewModel
 
     // ================================================================== hotspot
 
-    private Task StartAsync() => RunUiOpAsync(() => _wd!.StartHotspotAsync());
+    private bool _vpnPrompting;
+
+    private async Task StartAsync()
+    {
+        if (_uiBusy || _vpnPrompting || !Live) return;
+        IReadOnlyList<string>? accepted;
+        _vpnPrompting = true;
+        try { accepted = await ConfirmVpnAsync(); }
+        finally { _vpnPrompting = false; }
+        if (accepted == null) return;
+        await RunUiOpAsync(() => _wd!.StartHotspotAsync(accepted));
+    }
+
+    /// <summary>
+    /// The hotspot (Windows ICS) breaks a connected VPN: ask before starting. Returns the VPN adapters the user accepted
+    /// (empty = no VPN), or null = cancelled.
+    /// </summary>
+    private async Task<IReadOnlyList<string>?> ConfirmVpnAsync()
+    {
+        if (_last?.Hotspot?.State == HotspotState.On) return Array.Empty<string>();
+        var vpn = await Task.Run(VpnDetector.Detect);
+        if (vpn.Count == 0) return Array.Empty<string>();
+        var names = VpnDetector.Names(vpn);
+        if (await ShowVpnWarningAsync(vpn) != "start")
+        {
+            Logger.Info(Loc.T("vpn.logCancelled", names));
+            return null;
+        }
+        Logger.Warn(Loc.T("vpn.logContinued", names));
+        return vpn.Select(v => v.Name).ToList();
+    }
+
+    /// <summary>The warning before starting with VPNs connected: "start" = start anyway (also used by the --ui-screenshot mock).</summary>
+    internal Task<string> ShowVpnWarningAsync(IReadOnlyList<VpnAdapter> vpn) =>
+        Show(DialogVm.Custom(Loc.T("vpn.title"), Loc.T("vpn.confirm", string.Join("\n", vpn.Select(v => "• " + v.Display))), DialogKind.Warning, "cancel",
+            new DialogButtonVm(Loc.T("dialog.cancel"), "cancel", primary: true),
+            new DialogButtonVm(Loc.T("vpn.startAnyway"), "start", danger: true)));
 
     private Task StopAsync() => RunUiOpAsync(async () =>
     {

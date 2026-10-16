@@ -100,6 +100,7 @@ It is a window app: to see output and exit codes, run `start /wait VRAirBridgeHo
 - **Driver gone after uninstalling Meta software**: click **Install driver**.
 - **Another Meta bridge nearby on the same channel**: use **Pin to network** with a saved Wi-Fi in the other 80 MHz block.
 - **Picking a channel**: Windows chooses it, always within 36–48 or 149–161; **Pin to network** is the only way to steer it.
+- **VPN drops while the hotspot is on**: the hotspot shares the internet through Windows ICS, so full-tunnel VPNs such as WireGuard (Windscribe and others) may lose their connection. The app warns before starting; disconnect the VPN or stop the hotspot. Accelerators that only route game traffic, such as UU, are not affected.
 
 ## Privacy
 

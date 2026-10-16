@@ -77,6 +77,19 @@ public sealed class Watchdog : IDisposable
     private readonly Dictionary<string, ClientState> _clients = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, DateTime> _hintNotified = new();
 
+    // ---- VPN conflict: ICS turns on IPv4 forwarding on the uplink, and full-tunnel VPNs (WireGuard...) then lose their connection
+    private List<VpnAdapter> _vpn = new();
+    private readonly HashSet<string> _vpnSeen = new(StringComparer.OrdinalIgnoreCase);
+    /// <summary>VPN adapters the user saw in the start dialog and started the hotspot anyway (no notification for them).</summary>
+    private readonly HashSet<string> _vpnAccepted = new(StringComparer.OrdinalIgnoreCase);
+
+    // ---- after the hotspot stops: ICS sharing / IPv4 forwarding that did not go back off (null = nothing left)
+    private volatile SharingReport? _sharingLeft;
+    private DateTime _sharingRecheckAt;
+    /// <summary>Revert checks sharing itself: the next on → off change does not start another check.</summary>
+    private bool _skipStopCheck;
+    private int _sharingGen;
+
     // ---- join monitor: WLAN AutoConfig events + IP evidence explain why a device could not join
     private readonly JoinTracker _joins = new();
     private readonly HotspotInterfaceFilter _joinFilter = new();
@@ -225,11 +238,18 @@ public sealed class Watchdog : IDisposable
             }
             // 热点从开变为关：上一次的信标结果已过期，清掉（下次开启会重新核对）
             if (_lastState == HotspotState.On && !on) { _beacon = null; _beaconNote = null; }
+            // stopped on purpose (in the app or in Windows): make sure ICS sharing and IPv4 forwarding went back off
+            if (_lastState == HotspotState.On && !on && !DesiredOn)
+            {
+                if (_skipStopCheck) _skipStopCheck = false;
+                else StartSharingCheck();
+            }
             _lastState = snap.State;
         }
 
         if (on)
         {
+            _skipStopCheck = false;
             _onSince ??= now;
             if (_failures > 0 && now - _onSince > TimeSpan.FromSeconds(60)) { _failures = 0; Logger.Debug(Loc.T("watchdog.hotspotHasBeenStable60")); }
             _beaconDueAt ??= _beacon == null && !_beaconRunning ? now.AddSeconds(8) : null;
@@ -244,6 +264,10 @@ public sealed class Watchdog : IDisposable
             // 热点被别处关掉、也不打算重开：断开钉住用的 D-Link 连接
             if (!DesiredOn && _pin.Active) _pin.Release(Loc.T("watchdog.hotspotStopped"));
         }
+
+        // ---- VPN: before the hotspot starts and while it runs; leftovers of the last stop
+        TrackVpn(DesiredOn || on);
+        RecheckSharing(on, now);
 
         // ---- 需要时启动热点
         if (DesiredOn && !on && snap.State != HotspotState.InTransition)
@@ -695,6 +719,10 @@ public sealed class Watchdog : IDisposable
         var av = Loc.T("watchdog.ifYouUseSecuritySoftware");
         if (!_isAdmin)
             hints.Add(Loc.T("watchdog.notRunningAsAdministratorBuilt"));
+        if (_vpn.Count > 0)
+            hints.Add(Loc.T("vpn.hint", VpnDetector.Names(_vpn)));
+        if (_sharingLeft is { } left && snap.State != HotspotState.On)
+            hints.Add(Loc.T("sharing.hint", left.Text()));
         if (goOnDongle == false)
             hints.Add(Loc.T("watchdog.hotspotRunningNotDLink", go?.Description));
         if (_rx?.Compare.Weak == true)
@@ -799,10 +827,93 @@ public sealed class Watchdog : IDisposable
 
     private void NotifyHintOnce(string key, NotifyKind kind, string title, string text)
     {
-        if (_hintNotified.TryGetValue(key, out var t) && DateTime.UtcNow - t < TimeSpan.FromMinutes(10)) return;
-        _hintNotified[key] = DateTime.UtcNow;
+        if (!NotifyDue(key)) return;
         Logger.Warn(title + Loc.T("common.colon") + text);
         Raise(kind, title, text);
+    }
+
+    /// <summary>At most one notification per key every 10 minutes.</summary>
+    private bool NotifyDue(string key)
+    {
+        if (_hintNotified.TryGetValue(key, out var t) && DateTime.UtcNow - t < TimeSpan.FromMinutes(10)) return false;
+        _hintNotified[key] = DateTime.UtcNow;
+        return true;
+    }
+
+    // ================================================================ VPN / sharing
+
+    /// <summary>
+    /// While the hotspot is wanted or on: finds connected VPNs, logs each one when it appears and notifies (not for the ones
+    /// the user already accepted in the start dialog; at most every 10 minutes per adapter).
+    /// </summary>
+    private void TrackVpn(bool active)
+    {
+        if (!active)
+        {
+            if (_vpn.Count > 0) _vpn = new List<VpnAdapter>();
+            _vpnSeen.Clear();
+            return;
+        }
+        var found = VpnDetector.Detect();
+        _vpn = found;
+        foreach (var v in found)
+        {
+            if (!_vpnSeen.Add(v.Name)) continue;
+            Logger.Warn(Loc.T("vpn.logDetected", v.Display, v.Marker));
+            bool accepted;
+            lock (_vpnAccepted) accepted = _vpnAccepted.Contains(v.Name);
+            if (!accepted && NotifyDue("vpn:" + v.Name))
+                Raise(NotifyKind.Warning, Loc.T("vpn.title"), Loc.T("vpn.notify", v.Name));
+        }
+        foreach (var gone in _vpnSeen.Where(n => !found.Any(v => v.Name.Equals(n, StringComparison.OrdinalIgnoreCase))).ToList())
+        {
+            _vpnSeen.Remove(gone);
+            Logger.Info(Loc.T("vpn.logGone", gone));
+        }
+    }
+
+    /// <summary>After a stop (in the background): waits up to 15 s for Windows to turn ICS sharing and IPv4 forwarding off, then logs / notifies.</summary>
+    private void StartSharingCheck()
+    {
+        int gen = Interlocked.Increment(ref _sharingGen);
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                var rep = await SharingCheck.WaitUntilCleanAsync(() => SharingCheck.Check(_s), TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(2.5),
+                    () => DesiredOn || gen != Volatile.Read(ref _sharingGen));
+                if (rep != null) ReportSharing(rep, Loc.T("sharing.afterStop"), notify: true);
+            }
+            catch (Exception ex) { Logger.Debug("sharing check: " + ex.Message); }
+        });
+    }
+
+    private void ReportSharing(SharingReport rep, string logPrefix, bool notify)
+    {
+        if (rep.Clean)
+        {
+            _sharingLeft = null;
+            Logger.Ok(logPrefix + rep.OkLine());
+            return;
+        }
+        _sharingRecheckAt = DateTime.UtcNow.AddSeconds(30);
+        _sharingLeft = rep;
+        foreach (var line in rep.ProblemLines().Concat(rep.AdviceLines())) Logger.Warn(logPrefix + line);
+        if (notify) Raise(NotifyKind.Warning, Loc.T("sharing.title"), rep.Text());
+        Wake();
+    }
+
+    /// <summary>Something was left on after the last stop: look again every 30 s (hint until it is gone or the hotspot is back on).</summary>
+    private void RecheckSharing(bool on, DateTime now)
+    {
+        if (_sharingLeft == null) return;
+        if (on || DesiredOn) { _sharingLeft = null; return; }
+        if (now < _sharingRecheckAt) return;
+        _sharingRecheckAt = now.AddSeconds(30);
+        var rep = SharingCheck.Check(_s);
+        if (!rep.Clean) { _sharingLeft = rep; return; }
+        _sharingLeft = null;
+        Logger.Ok(Loc.T("sharing.recovered", rep.OkLine()));
     }
 
     // ================================================================ 状态发布
@@ -910,8 +1021,14 @@ public sealed class Watchdog : IDisposable
         }
     }
 
-    public async Task StartHotspotAsync()
+    /// <summary>acceptedVpn = VPN adapters the user was warned about in the start dialog and chose to start anyway.</summary>
+    public async Task StartHotspotAsync(IEnumerable<string>? acceptedVpn = null)
     {
+        lock (_vpnAccepted)
+        {
+            _vpnAccepted.Clear();
+            if (acceptedVpn != null) _vpnAccepted.UnionWith(acceptedVpn);
+        }
         // 用户重新点“启动热点”：允许再自动挪一次 Wi-Fi Direct
         if (!DesiredOn) _wfdTried = false;
         DesiredOn = true;
@@ -927,6 +1044,7 @@ public sealed class Watchdog : IDisposable
     public Task StopHotspotAsync() => RunOpAsync(Loc.T("watchdog.stoppingHotspot"), async () =>
     {
         DesiredOn = false;
+        lock (_vpnAccepted) _vpnAccepted.Clear();
         Logger.Info(Loc.T("watchdog.userClickedStopHotspotWatchdog"));
         _dhcp.StopServer(Loc.T("watchdog.stoppedByUser"));
         try { await _hc.StopAsync(); }
@@ -1099,9 +1217,18 @@ public sealed class Watchdog : IDisposable
     public Task<List<string>> RevertAsync() => RunOpAsync(Loc.T("watchdog.revertingSystemSettings"), async () =>
     {
         DesiredOn = false;
+        _skipStopCheck = true;   // checked below, with the result in the report
         _dhcp.StopServer(Loc.T("watchdog.revert"));
         try { await _hc.StopAsync(); } catch { }
-        return await Reverter.RunAsync(_s, SaveSettings);
+        var report = await Reverter.RunAsync(_s, SaveSettings);
+        // ICS sharing and IPv4 forwarding must be off again (otherwise VPNs such as WireGuard still fail)
+        var rep = await SharingCheck.WaitUntilCleanAsync(() => SharingCheck.Check(_s), TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(2.5));
+        if (rep != null)
+        {
+            report.AddRange(rep.Clean ? new[] { rep.OkLine() } : rep.ProblemLines().Concat(rep.AdviceLines()));
+            ReportSharing(rep, Loc.T("revert.revert"), notify: false);
+        }
+        return report;
     });
 
     /// <summary>程序退出。stopHotspot = 同时关闭热点。注意：本软件提供的 DHCP 会随程序退出而停止。</summary>

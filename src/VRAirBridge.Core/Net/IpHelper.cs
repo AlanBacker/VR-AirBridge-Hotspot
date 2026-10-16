@@ -144,9 +144,22 @@ public static class IpHelper
     /// IPv4 默认路由（0.0.0.0/0）在每个接口上的最小有效跃点数，key = 接口索引。
     /// Vista 以后 MIB_IPFORWARDROW.dwForwardMetric1 = 路由跃点 + 接口跃点，也就是 Windows 实际选路用的值。
     /// </summary>
-    public static Dictionary<int, int> GetDefaultRouteMetrics()
+    public static Dictionary<int, int> GetDefaultRouteMetrics() => DefaultRouteMetrics(GetIPv4Routes());
+
+    /// <summary>The 0.0.0.0/0 routes of a route table: lowest effective metric per interface index.</summary>
+    public static Dictionary<int, int> DefaultRouteMetrics(IEnumerable<RouteRow> routes)
     {
         var result = new Dictionary<int, int>();
+        foreach (var r in routes)
+            if (r.Destination == 0 && r.Mask == 0 && r.IfIndex > 0 && r.Metric >= 0)
+                result[r.IfIndex] = result.TryGetValue(r.IfIndex, out var m) ? Math.Min(m, r.Metric) : r.Metric;
+        return result;
+    }
+
+    /// <summary>The IPv4 route table (GetIpForwardTable). Empty when it cannot be read.</summary>
+    public static List<RouteRow> GetIPv4Routes()
+    {
+        var result = new List<RouteRow>();
         int size = 0;
         GetIpForwardTable(IntPtr.Zero, ref size, false);
         for (int attempt = 0; attempt < 5; attempt++)
@@ -163,12 +176,12 @@ public static class IpHelper
                 // MIB_IPFORWARDROW: 14 个 DWORD = Dest, Mask, Policy, NextHop, IfIndex, Type, Proto, Age, NextHopAS, Metric1..5
                 for (int i = 0; i < n; i++)
                 {
-                    uint dest = (uint)Marshal.ReadInt32(row);
-                    uint mask = (uint)Marshal.ReadInt32(row + 4);
+                    // Dest and Mask are in network byte order
+                    uint dest = (uint)IPAddress.NetworkToHostOrder(Marshal.ReadInt32(row));
+                    uint mask = (uint)IPAddress.NetworkToHostOrder(Marshal.ReadInt32(row + 4));
                     int ifIndex = Marshal.ReadInt32(row + 16);
                     int metric = Marshal.ReadInt32(row + 36);
-                    if (dest == 0 && mask == 0 && ifIndex > 0 && metric >= 0)
-                        result[ifIndex] = result.TryGetValue(ifIndex, out var m) ? Math.Min(m, metric) : metric;
+                    result.Add(new RouteRow(dest, mask, ifIndex, metric));
                     row += 56;
                 }
                 return result;
@@ -176,5 +189,17 @@ public static class IpHelper
             finally { Marshal.FreeHGlobal(buf); }
         }
         return result;
+    }
+}
+
+/// <summary>One IPv4 route. Destination and Mask in host byte order (128.0.0.0 = 0x80000000); Metric = route + interface metric.</summary>
+public sealed record RouteRow(uint Destination, uint Mask, int IfIndex, int Metric)
+{
+    public static RouteRow Of(string prefix, int ifIndex, int metric)
+    {
+        var parts = prefix.Split('/');
+        var len = int.Parse(parts[1]);
+        uint mask = len == 0 ? 0 : uint.MaxValue << (32 - len);
+        return new RouteRow(NetworkInfo.ToUInt32(IPAddress.Parse(parts[0])), mask, ifIndex, metric);
     }
 }
